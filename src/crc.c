@@ -3,7 +3,7 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include "../include/ftn.h"
+#include "ftn.h"
 
 /* CRC-16 polynomial: x^16 + x^12 + x^5 + 1 (0x1021) */
 static unsigned int crc_table[256];

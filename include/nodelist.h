@@ -104,3 +104,4 @@ const char* ftn_node_type_to_string(ftn_node_type_t type);
 ftn_node_type_t ftn_node_type_from_string(const char* str);
 
 #endif /* NODELIST_H */
+

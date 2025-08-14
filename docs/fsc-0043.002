@@ -94,7 +94,7 @@ The four parts of an echomail trailer are:
         " " <net> "/" <node>
     sequences.  The N/N in ^aPATH: lines are specifically not sorted.  Net
     numbers are also sticky in ^aPATH: lines, eg.
-        PATH: 105/301 6 42
+        PATH: 105/301 6 42
 
 Remember that traffic costs much money, and do not create text unnecessary to
 FidoNet as a whole.

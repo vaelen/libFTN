@@ -5,7 +5,7 @@
  * Example program to search for entries in a FidoNet nodelist
  */
 
-#include <ftn.h>
+#include "ftn.h"
 
 static void print_usage(const char* progname) {
     printf("Usage: %s <nodelist_file> <command> [args]\n", progname);

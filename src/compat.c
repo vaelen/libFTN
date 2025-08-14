@@ -3,7 +3,7 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include "../include/compat.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>

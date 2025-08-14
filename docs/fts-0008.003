@@ -462,4 +462,3 @@ Status of this document:
          on the other end if it is using the SEAlink extended FTS-0001
          specification protocol.  Sending a NUL is harmless for a strict
          FTS-0001 session, but will not buy more time.
-

@@ -336,24 +336,24 @@ Table of contents
    Protocol commands may be classified the following way:
 
      * By argument type:
-         1. Mailer-parseable: M_ADR, M_PWD, M_FILE, M_GOT, M_GET,
+        1. Mailer-parseable: M_ADR, M_PWD, M_FILE, M_GOT, M_GET,
             M_SKIP. Mailer MUST parse these commands and it is not
             recommended to log arguments of these commands as they
             are. Mailer-parseable commands can be further subdivided
             by containment of a file name in the argument.
-              1. Contain a file name: M_FILE, M_GOT, M_GET, M_SKIP
+             1. Contain a file name: M_FILE, M_GOT, M_GET, M_SKIP
                  commands contain a file name in their arguments.
-              2. Do not contain a file name: M_ADR, M_PWD
-         2. Human-readable: M_NUL, M_OK, M_EOB, M_ERR, M_BSY. Mailer
+             2. Do not contain a file name: M_ADR, M_PWD
+        2. Human-readable: M_NUL, M_OK, M_EOB, M_ERR, M_BSY. Mailer
             MAY ignore and/or log arguments of these commands.
      * By protocol stage:
-         1. Session setup stage: M_ADR (must be sent by both sides),
+        1. Session setup stage: M_ADR (must be sent by both sides),
             M_PWD (must not be sent by the Answering side), M_OK (must
             not be sent by the Originating side). These commands MUST
             never be sent during the file transfer stage.
-         2. File transfer stage: M_FILE, M_GOT, M_GET, M_SKIP, M_EOB.
+        2. File transfer stage: M_FILE, M_GOT, M_GET, M_SKIP, M_EOB.
             These commands MUST NOT be sent session setup stage.
-         3. Any stage: M_NUL, M_ERR, M_BSY. These commands MAY be sent
+        3. Any stage: M_NUL, M_ERR, M_BSY. These commands MAY be sent
             any time during the session.
 
   5.2 File Name Issues
