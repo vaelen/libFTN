@@ -4,8 +4,9 @@ libFTN is a C library for working with FidoNet (FTN) mail and related protocols.
 
 ## Project Goals
 
-- The library should be written in ISO/ANSI C ('89) to remain as portable as possible.
+- The library is written in ISO/ANSI C ('89) to remain as portable as possible.
 - The library should compile with any ISO/ANSI C compiler and not rely on any OS specific code.
+- A compatibility layer is provided for non-ANSI and non-POSIX compilers.
 
 ## Features
 
