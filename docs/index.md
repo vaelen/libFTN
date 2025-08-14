@@ -17,22 +17,12 @@
   - [FTS-4001.001](fts-4001.001)  Addressing control paragraphs
   - [FTS-4008.002](fts-4008.002)  Time zone information (TZUTC)
   - [FTS-4009.001](fts-4009.001)  Netmail tracking (Via)
-  - [FTS-5000.001](fts-5000.001)  The Distribution Nodelist
-  - [FTS-5000.002](fts-5000.002)  ,,
-  - [FTS-5000.004](fts-5000.004)  ,, 
-  - [FTS-5000.005](fts-5000.005)  ,,
-  - [FTS-5001.001](fts-5001.001)  Nodelist Flags and Userflags
-  - [FTS-5001.002](fts-5001.002)  ,,
-  - [FTS-5001.004](fts-5001.004)  ,,
-  - [FTS-5001.005](fts-5001.005)  ,,
-  - [FTS-5001.006](fts-5001.006)  ,,
-  - [FTS-5002.001](fts-5002.001)  Pointlist formats
+  - [FTS-5000.005](fts-5000.005)  The Distribution Nodelist
+  - [FTS-5001.006](fts-5001.006)  Nodelist Flags and Userflags
   - [FTS-5002.002](fts-5002.002)  Pointlist formats
   - [FTS-5003.001](fts-5003.001)  Character set definition in Fidonet messages
   - [FTS-5004.001](fts-5004.001)  DSN Distributed Nodelist
-  - [FTS-5005.001](fts-5005.001)  Advanced Binkleyterm Style Outbound flow and control
-  - [FTS-5005.002](fts-5005.002)  ,,
-  - [FTS-5005.003](fts-5005.003)  ,,
+  - [FTS-5005.003](fts-5005.003)  Advanced Binkleyterm Style Outbound flow and control
   - [FTS-5006.001](fts-5006.001)  Tick file format
 
 # Fidonet Standards Proposals
@@ -70,7 +60,6 @@
   - [FSC-0036.001](fsc-0036.001)  Group Mail specification
   - [FSC-0037.001](fsc-0037.001)  AVATAR 0+ Video Spec
   - [FSC-0038.001](fsc-0038.001)  A Domain Proposal For Fidonet
-  - [FSC-0039.001](fsc-0039.001)  A type-2 packet extension proposal
   - [FSC-0039.004](fsc-0039.004)  A type-2 packet extension proposal
   - [FSC-0040.001](fsc-0040.001)  Proposed modem handling extension
   - [FSC-0042.001](fsc-0042.001)  A modified gateway agreement

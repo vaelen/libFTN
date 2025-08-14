@@ -20,6 +20,7 @@ On UNIX or any UNIX-like operating system (such as Linux or MacOS) you should on
 
 - [bin](bin) - Compiled executables will be placed here after compilation.
 - [docs](docs) - The FTN technical documentation, originally retrieved from the [FTSC Documents](http://ftsc.org/docs/) website.
+- [examples](examples) - Example files.
 - [include](include) - C header files are placed here.
 - [lib](lib) - The compiled library will be placed here after compilation.
 - [obj](obj) - Temporary object files are placed here during compilation.

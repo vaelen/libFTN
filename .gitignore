@@ -1,0 +1,55 @@
+# Build outputs
+bin/
+lib/
+obj/
+
+# Compiled library
+*.a
+*.so
+*.dll
+
+# Object files
+*.o
+*.obj
+
+# Executables
+*.exe
+nlview
+nllookup
+test_nodelist
+test_crc
+test_compat
+
+# Debug and test files
+debug_test*
+mini_test*
+parse_test*
+load_test*
+trace_test*
+small_test.txt
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+core
+core.*
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
