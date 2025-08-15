@@ -67,6 +67,64 @@ Successfully tested with the real fsxNet nodelist (298 entries) showing:
 - Name search: "Agency BBS" found correctly
 - All memory properly managed with no leaks
 
-## Next Phase: Packed Mail Objects
+## Phase 2: Support for Netmail and Echomail
 
-Ready to implement the second project goal: Functions for parsing and creating packed mail objects.
+The FTN library needs to be able to read and write mail messages as this is its primary purpose.
+FidoNet contains two kinds of mail messages: Netmail and Echomail.
+Netmail is like e-mail in that messages are sent from one person to another.
+Echomail is like a discussion group where messages are sent to the group itself instead of being sent to an individual.
+
+### Requirements
+
+1. Support FidoNet Netmail as defined in the Basic Fidonet Technical Standard (FTS-0001).
+   - The library does not need to support the Session Layer, Network Layer, or Data Link Layer at this time.
+   - The library should operate on packet (pkt) files containing bundle of messages. 
+2. Support Echomail as defined in the Echomal Specification (FTS-0004).
+3. Support message identification and reply linkage (FTS-0009).
+
+### Error Handling and Validation
+- [] Comprehensive input validation
+- [] File I/O error handling
+- [] Memory allocation error handling
+- [] Malformed data handling
+
+### Testing and Examples
+- [] Unit tests for all functions
+- [] Example program: parse a netmail or echomail file and list message id, from, to, and subject
+- [] Example program: find a specific message in a netmail or echomail file and display it
+- [] Example program: create a new netmail or echomail message and write it to a pkt file.
+- [] Example program: a tool to bundle several messages together into a single pkt file.
+- [] Be sure to test with real pkt files from the examples directory.
+
+### Documentation
+- [] API documentation in header files
+- [] Usage examples
+- [] Build instructions verification
+
+## Phase 3: Support for Control Paragraphs
+
+In this phase we add support for several optional features.
+
+### Requirements
+
+1. Support control paragraphs (FTS-4000)
+2. Support addressing control paragraphs (FTS-4001)
+3. Support time zones (FTS-4008)
+4. Support Netmail tracking (FTS-4009)
+
+
+### Error Handling and Validation
+- [] Comprehensive input validation
+- [] File I/O error handling
+- [] Memory allocation error handling
+- [] Malformed data handling
+
+### Testing and Examples
+- [] Unit tests for all functions
+- [] Update example programs to support the new features.
+- [] Test with real pkt files from the examples directory.
+
+### Documentation
+- [] API documentation in header files
+- [] Usage examples
+- [] Build instructions verification

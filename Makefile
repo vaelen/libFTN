@@ -14,15 +14,15 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
-TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c
+TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/%)
 
 # Example programs  
-EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c
+EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c
 EXAMPLE_BINARIES = $(EXAMPLE_SOURCES:$(SRCDIR)/%.c=$(BINDIR)/%)
 
 .PHONY: all clean test examples

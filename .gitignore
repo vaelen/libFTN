@@ -55,3 +55,5 @@ Desktop.ini
 # Backup files
 *.bak
 *.backup
+
+examples/binkp

@@ -42,7 +42,12 @@ typedef enum {
     FTN_ERROR_PARSE,
     FTN_ERROR_CRC,
     FTN_ERROR_INVALID,
-    FTN_ERROR_NOTFOUND
+    FTN_ERROR_NOTFOUND,
+    FTN_ERROR_MEMORY,
+    FTN_ERROR_INVALID_PARAMETER,
+    FTN_ERROR_INVALID_FORMAT,
+    FTN_ERROR_FILE_NOT_FOUND,
+    FTN_ERROR_FILE_ACCESS
 } ftn_error_t;
 
 /* FTN Address Structure */
@@ -55,6 +60,7 @@ typedef struct {
 
 /* Include nodelist functionality */
 #include "nodelist.h"
+#include "packet.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);
