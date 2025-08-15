@@ -405,6 +405,24 @@ void ftn_message_free(ftn_message_t* message) {
         free(message->path);
     }
     
+    /* Free control paragraph fields */
+    if (message->control_lines) {
+        for (i = 0; i < message->control_count; i++) {
+            if (message->control_lines[i]) free(message->control_lines[i]);
+        }
+        free(message->control_lines);
+    }
+    
+    if (message->intl) free(message->intl);
+    if (message->tzutc) free(message->tzutc);
+    
+    if (message->via_lines) {
+        for (i = 0; i < message->via_count; i++) {
+            if (message->via_lines[i]) free(message->via_lines[i]);
+        }
+        free(message->via_lines);
+    }
+    
     free(message);
 }
 
@@ -540,6 +558,39 @@ ftn_error_t ftn_message_parse_text(ftn_message_t* message, const char* text) {
             else if (strncmp(trimmed_line, "\001PATH:", 6) == 0) {
                 ftn_message_add_path(message, trimmed_line + 6);
             }
+            /* FTS-4001: Addressing Control Paragraphs */
+            else if (strncmp(trimmed_line, "\001FMPT ", 6) == 0) {
+                message->fmpt = (unsigned int)atoi(trimmed_line + 6);
+            }
+            else if (strncmp(trimmed_line, "\001TOPT ", 6) == 0) {
+                message->topt = (unsigned int)atoi(trimmed_line + 6);
+            }
+            else if (strncmp(trimmed_line, "\001INTL ", 6) == 0) {
+                if (message->intl) free(message->intl);
+                message->intl = strdup(trimmed_line + 6);
+                ftn_trim(message->intl);
+            }
+            /* FTS-4008: Time Zone Information */
+            else if (strncmp(trimmed_line, "\001TZUTC:", 7) == 0) {
+                if (message->tzutc) free(message->tzutc);
+                message->tzutc = strdup(trimmed_line + 7);
+                ftn_trim(message->tzutc);
+            }
+            /* FTS-4009: Netmail Tracking */
+            else if (strncmp(trimmed_line, "\001Via ", 5) == 0) {
+                char** temp = realloc(message->via_lines, (message->via_count + 1) * sizeof(char*));
+                if (temp) {
+                    message->via_lines = temp;
+                    message->via_lines[message->via_count] = strdup(trimmed_line + 1); /* Skip SOH */
+                    if (message->via_lines[message->via_count]) {
+                        message->via_count++;
+                    }
+                }
+            }
+            /* FTS-4000: Generic Control Paragraphs */
+            else {
+                ftn_message_add_control(message, trimmed_line + 1); /* Skip SOH */
+            }
             /* Control-A lines are not part of message body */
         }
         /* Check for tear line - store it but continue parsing body */
@@ -635,6 +686,26 @@ char* ftn_message_create_text(const ftn_message_t* message) {
     if (message->area) {
         total_len += strlen("AREA:") + strlen(message->area) + 2;
     }
+    /* FTS-4001: Addressing Control Paragraphs */
+    if (message->intl) {
+        total_len += 7 + strlen(message->intl) + 2;  /* \001INTL */
+    }
+    if (message->fmpt > 0) {
+        total_len += 20;  /* \001FMPT plus number */
+    }
+    if (message->topt > 0) {
+        total_len += 20;  /* \001TOPT plus number */
+    }
+    /* FTS-4008: Time Zone Information */
+    if (message->tzutc) {
+        total_len += 8 + strlen(message->tzutc) + 2;  /* \001TZUTC: */
+    }
+    /* FTS-4000: Generic Control Paragraphs */
+    for (i = 0; i < message->control_count; i++) {
+        if (message->control_lines[i]) {
+            total_len += 1 + strlen(message->control_lines[i]) + 2;  /* \001 prefix */
+        }
+    }
     if (message->msgid) {
         total_len += 8 + strlen(message->msgid) + 2;  /* \001MSGID: */
     }
@@ -660,6 +731,12 @@ char* ftn_message_create_text(const ftn_message_t* message) {
             total_len += 7 + strlen(message->path[i]) + 2;  /* \001PATH: */
         }
     }
+    /* FTS-4009: Netmail Tracking */
+    for (i = 0; i < message->via_count; i++) {
+        if (message->via_lines[i]) {
+            total_len += 1 + strlen(message->via_lines[i]) + 2;  /* \001 prefix */
+        }
+    }
     
     total_len += 1;  /* null terminator */
     
@@ -672,6 +749,39 @@ char* ftn_message_create_text(const ftn_message_t* message) {
         strcat(result, "AREA:");
         strcat(result, message->area);
         strcat(result, "\r\n");
+    }
+    
+    /* FTS-4001: Addressing Control Paragraphs */
+    if (message->intl) {
+        strcat(result, "\001INTL ");
+        strcat(result, message->intl);
+        strcat(result, "\r\n");
+    }
+    if (message->fmpt > 0) {
+        char fmpt_str[20];
+        sprintf(fmpt_str, "\001FMPT %u\r\n", message->fmpt);
+        strcat(result, fmpt_str);
+    }
+    if (message->topt > 0) {
+        char topt_str[20];
+        sprintf(topt_str, "\001TOPT %u\r\n", message->topt);
+        strcat(result, topt_str);
+    }
+    
+    /* FTS-4008: Time Zone Information */
+    if (message->tzutc) {
+        strcat(result, "\001TZUTC: ");
+        strcat(result, message->tzutc);
+        strcat(result, "\r\n");
+    }
+    
+    /* FTS-4000: Generic Control Paragraphs */
+    for (i = 0; i < message->control_count; i++) {
+        if (message->control_lines[i]) {
+            strcat(result, "\001");
+            strcat(result, message->control_lines[i]);
+            strcat(result, "\r\n");
+        }
     }
     
     if (message->msgid) {
@@ -713,6 +823,15 @@ char* ftn_message_create_text(const ftn_message_t* message) {
         if (message->path[i]) {
             strcat(result, "\001PATH: ");
             strcat(result, message->path[i]);
+            strcat(result, "\r\n");
+        }
+    }
+    
+    /* FTS-4009: Netmail Tracking */
+    for (i = 0; i < message->via_count; i++) {
+        if (message->via_lines[i]) {
+            strcat(result, "\001");
+            strcat(result, message->via_lines[i]);
             strcat(result, "\r\n");
         }
     }
@@ -782,4 +901,132 @@ ftn_error_t ftn_message_set_reply(ftn_message_t* message, const char* reply_msgi
     message->reply = strdup(reply_msgid);
     
     return message->reply ? FTN_OK : FTN_ERROR_MEMORY;
+}
+
+/* Control Paragraph Functions (FTS-4000) */
+ftn_error_t ftn_message_add_control(ftn_message_t* message, const char* control_line) {
+    char** temp;
+    
+    if (!message || !control_line) return FTN_ERROR_INVALID_PARAMETER;
+    
+    temp = realloc(message->control_lines, (message->control_count + 1) * sizeof(char*));
+    if (!temp) return FTN_ERROR_MEMORY;
+    
+    message->control_lines = temp;
+    message->control_lines[message->control_count] = strdup(control_line);
+    if (!message->control_lines[message->control_count]) return FTN_ERROR_MEMORY;
+    
+    message->control_count++;
+    
+    return FTN_OK;
+}
+
+const char* ftn_message_get_control(const ftn_message_t* message, const char* tag) {
+    size_t i;
+    size_t tag_len;
+    
+    if (!message || !tag) return NULL;
+    
+    tag_len = strlen(tag);
+    
+    for (i = 0; i < message->control_count; i++) {
+        if (message->control_lines[i] && 
+            strncmp(message->control_lines[i], tag, tag_len) == 0 &&
+            (message->control_lines[i][tag_len] == ':' || message->control_lines[i][tag_len] == ' ')) {
+            /* Return pointer to value part after tag and separator */
+            if (message->control_lines[i][tag_len] == ':') {
+                /* Skip ": " if present, otherwise just ":" */
+                if (message->control_lines[i][tag_len + 1] == ' ') {
+                    return &message->control_lines[i][tag_len + 2];
+                } else {
+                    return &message->control_lines[i][tag_len + 1];
+                }
+            } else {
+                /* Skip space separator */
+                return &message->control_lines[i][tag_len + 1];
+            }
+        }
+    }
+    
+    return NULL;
+}
+
+/* Addressing Control Paragraphs (FTS-4001) */
+ftn_error_t ftn_message_set_fmpt(ftn_message_t* message, unsigned int point) {
+    if (!message) return FTN_ERROR_INVALID_PARAMETER;
+    
+    message->fmpt = point;
+    
+    return FTN_OK;
+}
+
+ftn_error_t ftn_message_set_topt(ftn_message_t* message, unsigned int point) {
+    if (!message) return FTN_ERROR_INVALID_PARAMETER;
+    
+    message->topt = point;
+    
+    return FTN_OK;
+}
+
+ftn_error_t ftn_message_set_intl(ftn_message_t* message, const ftn_address_t* dest, const ftn_address_t* orig) {
+    char dest_str[32], orig_str[32];
+    char* intl_str;
+    
+    if (!message || !dest || !orig) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Format addresses as zone:net/node (no point) */
+    snprintf(dest_str, sizeof(dest_str), "%u:%u/%u", dest->zone, dest->net, dest->node);
+    snprintf(orig_str, sizeof(orig_str), "%u:%u/%u", orig->zone, orig->net, orig->node);
+    
+    intl_str = malloc(strlen(dest_str) + strlen(orig_str) + 2);
+    if (!intl_str) return FTN_ERROR_MEMORY;
+    
+    sprintf(intl_str, "%s %s", dest_str, orig_str);
+    
+    if (message->intl) free(message->intl);
+    message->intl = intl_str;
+    
+    return FTN_OK;
+}
+
+/* Time Zone Information (FTS-4008) */
+ftn_error_t ftn_message_set_tzutc(ftn_message_t* message, const char* offset) {
+    if (!message || !offset) return FTN_ERROR_INVALID_PARAMETER;
+    
+    if (message->tzutc) free(message->tzutc);
+    message->tzutc = strdup(offset);
+    
+    return message->tzutc ? FTN_OK : FTN_ERROR_MEMORY;
+}
+
+/* Netmail Tracking (FTS-4009) */
+ftn_error_t ftn_message_add_via(ftn_message_t* message, const ftn_address_t* addr, 
+                                const char* timestamp, const char* program, const char* version) {
+    char** temp;
+    char addr_str[64];
+    char* via_str;
+    size_t via_len;
+    
+    if (!message || !addr || !timestamp || !program || !version) return FTN_ERROR_INVALID_PARAMETER;
+    
+    ftn_address_to_string(addr, addr_str, sizeof(addr_str));
+    
+    /* Calculate length needed: "Via " + address + " @" + timestamp + " " + program + " " + version */
+    via_len = strlen(addr_str) + strlen(timestamp) + strlen(program) + strlen(version) + 10;
+    via_str = malloc(via_len);
+    if (!via_str) return FTN_ERROR_MEMORY;
+    
+    snprintf(via_str, via_len, "Via %s @%s %s %s", addr_str, timestamp, program, version);
+    
+    temp = realloc(message->via_lines, (message->via_count + 1) * sizeof(char*));
+    if (!temp) {
+        free(via_str);
+        return FTN_ERROR_MEMORY;
+    }
+    
+    message->via_lines = temp;
+    message->via_lines[message->via_count] = via_str;
+    message->via_count++;
+    
+    return FTN_OK;
 }

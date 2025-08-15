@@ -109,6 +109,22 @@ typedef struct {
     /* Message ID and Reply (FTS-0009) */
     char* msgid;                   /* MSGID line */
     char* reply;                   /* REPLY line */
+    
+    /* Control Paragraphs (FTS-4000) */
+    char** control_lines;          /* Generic control paragraphs */
+    size_t control_count;          /* Number of control paragraphs */
+    
+    /* Addressing Control Paragraphs (FTS-4001) */
+    unsigned int fmpt;             /* From point number (0 if none) */
+    unsigned int topt;             /* To point number (0 if none) */
+    char* intl;                    /* INTL addressing string */
+    
+    /* Time Zone Information (FTS-4008) */
+    char* tzutc;                   /* TZUTC offset string */
+    
+    /* Netmail Tracking (FTS-4009) */
+    char** via_lines;              /* Via tracking lines */
+    size_t via_count;              /* Number of Via lines */
 } ftn_message_t;
 
 /* Packet Structure */
@@ -156,5 +172,21 @@ void ftn_message_clear_attribute(ftn_message_t* message, unsigned int attr);
 /* Date/time conversion functions */
 ftn_error_t ftn_datetime_to_string(time_t timestamp, char* buffer, size_t size);
 ftn_error_t ftn_datetime_from_string(const char* datetime_str, time_t* timestamp);
+
+/* Control Paragraph Functions (FTS-4000) */
+ftn_error_t ftn_message_add_control(ftn_message_t* message, const char* control_line);
+const char* ftn_message_get_control(const ftn_message_t* message, const char* tag);
+
+/* Addressing Control Paragraphs (FTS-4001) */
+ftn_error_t ftn_message_set_fmpt(ftn_message_t* message, unsigned int point);
+ftn_error_t ftn_message_set_topt(ftn_message_t* message, unsigned int point);
+ftn_error_t ftn_message_set_intl(ftn_message_t* message, const ftn_address_t* dest, const ftn_address_t* orig);
+
+/* Time Zone Information (FTS-4008) */
+ftn_error_t ftn_message_set_tzutc(ftn_message_t* message, const char* offset);
+
+/* Netmail Tracking (FTS-4009) */
+ftn_error_t ftn_message_add_via(ftn_message_t* message, const ftn_address_t* addr, 
+                                const char* timestamp, const char* program, const char* version);
 
 #endif /* PACKET_H */

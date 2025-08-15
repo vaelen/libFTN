@@ -103,6 +103,40 @@ static void print_message_details(const ftn_message_t* message) {
         }
     }
     
+    /* FTS-4001: Addressing Control Paragraphs */
+    if (message->fmpt > 0) {
+        printf("FMPT:     %u\n", message->fmpt);
+    }
+    
+    if (message->topt > 0) {
+        printf("TOPT:     %u\n", message->topt);
+    }
+    
+    if (message->intl) {
+        printf("INTL:     %s\n", message->intl);
+    }
+    
+    /* FTS-4008: Time Zone Information */
+    if (message->tzutc) {
+        printf("TZUTC:    %s\n", message->tzutc);
+    }
+    
+    /* FTS-4000: Generic Control Paragraphs */
+    if (message->control_count > 0) {
+        printf("Control Lines:\n");
+        for (i = 0; i < message->control_count; i++) {
+            printf("  %s\n", message->control_lines[i]);
+        }
+    }
+    
+    /* FTS-4009: Netmail Tracking */
+    if (message->via_count > 0) {
+        printf("Via Lines:\n");
+        for (i = 0; i < message->via_count; i++) {
+            printf("  %s\n", message->via_lines[i]);
+        }
+    }
+    
     printf("\nMessage Text:\n");
     printf("=============\n");
     if (message->text && strlen(message->text) > 0) {
