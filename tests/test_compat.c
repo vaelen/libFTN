@@ -63,11 +63,92 @@ static void test_strdup(void) {
     printf("strdup: PASSED\n");
 }
 
+static void test_strtok_r(void) {
+    char buffer[64];
+    char* token;
+    char* saveptr;
+    
+    printf("Testing strtok_r...\n");
+    
+    /* Test basic tokenization */
+    strcpy(buffer, "one,two,three");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "one") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "two") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "three") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token == NULL);
+    
+    /* Test with multiple delimiters */
+    strcpy(buffer, "IBN:test.org,ITN:23");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "IBN:test.org") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "ITN:23") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token == NULL);
+    
+    /* Test with leading delimiters */
+    strcpy(buffer, ",,,one,two");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "one") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "two") == 0);
+    
+    /* Test with trailing delimiters */
+    strcpy(buffer, "one,two,,,");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "one") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token != NULL);
+    assert(strcmp(token, "two") == 0);
+    
+    token = strtok_r(NULL, ",", &saveptr);
+    assert(token == NULL);
+    
+    /* Test empty string */
+    strcpy(buffer, "");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token == NULL);
+    
+    /* Test only delimiters */
+    strcpy(buffer, ",,,");
+    token = strtok_r(buffer, ",", &saveptr);
+    assert(token == NULL);
+    
+    /* Test NULL inputs */
+    token = strtok_r(NULL, ",", NULL);
+    assert(token == NULL);
+    
+    token = strtok_r(buffer, NULL, &saveptr);
+    assert(token == NULL);
+    
+    printf("strtok_r: PASSED\n");
+}
+
 int main(void) {
     printf("Running compatibility tests...\n\n");
     
     test_snprintf();
     test_strdup();
+    test_strtok_r();
     
     printf("\nAll compatibility tests passed!\n");
     return 0;

@@ -20,6 +20,10 @@ static void print_usage(const char* progname) {
 
 static void print_entry(const ftn_nodelist_entry_t* entry) {
     char addr_str[32];
+    ftn_inet_service_t* services;
+    size_t service_count;
+    size_t i;
+    char* filtered_flags;
     
     ftn_address_to_string(&entry->address, addr_str, sizeof(addr_str));
     
@@ -30,7 +34,31 @@ static void print_entry(const ftn_nodelist_entry_t* entry) {
     printf("Sysop:    %s\n", entry->sysop ? entry->sysop : "");
     printf("Phone:    %s\n", entry->phone ? entry->phone : "");
     printf("Speed:    %s\n", entry->speed ? entry->speed : "");
-    printf("Flags:    %s\n", entry->flags ? entry->flags : "");
+    
+    /* Display flags with Internet flags filtered out */
+    filtered_flags = ftn_nodelist_filter_inet_flags(entry->flags);
+    printf("Flags:    %s\n", filtered_flags ? filtered_flags : "");
+    if (filtered_flags) free(filtered_flags);
+    
+    /* Parse and display Internet services */
+    service_count = ftn_nodelist_parse_inet_flags(entry->flags, &services);
+    if (service_count > 0) {
+        printf("Internet Services:\n");
+        for (i = 0; i < service_count; i++) {
+            if (services[i].hostname) {
+                printf("  %s: %s:%u\n", 
+                       ftn_inet_protocol_to_string(services[i].protocol),
+                       services[i].hostname,
+                       services[i].port);
+            } else {
+                printf("  %s: (no hostname):%u\n",
+                       ftn_inet_protocol_to_string(services[i].protocol),
+                       services[i].port);
+            }
+        }
+        ftn_nodelist_free_inet_services(services, service_count);
+    }
+    
     printf("\n");
 }
 

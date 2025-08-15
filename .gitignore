@@ -35,6 +35,8 @@ small_test.txt
 *.swo
 *~
 .DS_Store
+\#*
+.\#*
 
 # Temporary files
 *.tmp

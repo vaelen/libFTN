@@ -103,5 +103,29 @@ ftn_error_t ftn_nodelist_verify_crc(const char* filename, unsigned int expected_
 const char* ftn_node_type_to_string(ftn_node_type_t type);
 ftn_node_type_t ftn_node_type_from_string(const char* str);
 
+/* Internet Capability Flag Types */
+typedef enum {
+    FTN_INET_IBN = 0,  /* Binkp */
+    FTN_INET_IFC,      /* RAW ifcico */
+    FTN_INET_IFT,      /* FTP */
+    FTN_INET_ITN,      /* Telnet */
+    FTN_INET_IVM       /* Vmodem */
+} ftn_inet_protocol_t;
+
+/* Internet Service Structure */
+typedef struct {
+    ftn_inet_protocol_t protocol;
+    char* hostname;
+    unsigned int port;
+    int has_port;
+} ftn_inet_service_t;
+
+/* Internet Capability Functions */
+size_t ftn_nodelist_parse_inet_flags(const char* flags, ftn_inet_service_t** services);
+void ftn_nodelist_free_inet_services(ftn_inet_service_t* services, size_t count);
+const char* ftn_inet_protocol_to_string(ftn_inet_protocol_t protocol);
+unsigned int ftn_inet_protocol_default_port(ftn_inet_protocol_t protocol);
+char* ftn_nodelist_filter_inet_flags(const char* flags);
+
 #endif /* NODELIST_H */
 

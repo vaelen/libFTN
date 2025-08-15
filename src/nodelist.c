@@ -339,3 +339,253 @@ void ftn_nodelist_free(ftn_nodelist_t* nodelist) {
     
     free(nodelist);
 }
+
+const char* ftn_inet_protocol_to_string(ftn_inet_protocol_t protocol) {
+    switch (protocol) {
+        case FTN_INET_IBN: return "Binkp";
+        case FTN_INET_IFC: return "ifcico";
+        case FTN_INET_IFT: return "FTP";
+        case FTN_INET_ITN: return "Telnet";
+        case FTN_INET_IVM: return "Vmodem";
+        default: return "Unknown";
+    }
+}
+
+unsigned int ftn_inet_protocol_default_port(ftn_inet_protocol_t protocol) {
+    switch (protocol) {
+        case FTN_INET_IBN: return 24554;
+        case FTN_INET_IFC: return 60179;
+        case FTN_INET_IFT: return 21;
+        case FTN_INET_ITN: return 23;
+        case FTN_INET_IVM: return 3141;
+        default: return 0;
+    }
+}
+
+static ftn_inet_protocol_t ftn_inet_protocol_from_string(const char* str) {
+    if (strcmp(str, "IBN") == 0) return FTN_INET_IBN;
+    if (strcmp(str, "IFC") == 0) return FTN_INET_IFC;
+    if (strcmp(str, "IFT") == 0) return FTN_INET_IFT;
+    if (strcmp(str, "ITN") == 0) return FTN_INET_ITN;
+    if (strcmp(str, "IVM") == 0) return FTN_INET_IVM;
+    return FTN_INET_IBN; /* default */
+}
+
+static int ftn_is_inet_protocol_flag(const char* flag) {
+    return (strncmp(flag, "IBN", 3) == 0 ||
+            strncmp(flag, "IFC", 3) == 0 ||
+            strncmp(flag, "IFT", 3) == 0 ||
+            strncmp(flag, "ITN", 3) == 0 ||
+            strncmp(flag, "IVM", 3) == 0);
+}
+
+static int ftn_is_inet_flag(const char* flag) {
+    return (ftn_is_inet_protocol_flag(flag) ||
+            strncmp(flag, "INA:", 4) == 0 ||
+            strcmp(flag, "INO4") == 0 ||
+            strcmp(flag, "ICM") == 0);
+}
+
+size_t ftn_nodelist_parse_inet_flags(const char* flags, ftn_inet_service_t** services) {
+    char* work_flags;
+    char* flag;
+    char* saveptr;
+    size_t count = 0;
+    size_t capacity = 4;
+    ftn_inet_service_t* service_list;
+    char* default_hostname = NULL;
+    
+    if (!flags || !services) return 0;
+    
+    *services = NULL;
+    
+    service_list = malloc(capacity * sizeof(ftn_inet_service_t));
+    if (!service_list) return 0;
+    
+    work_flags = strdup(flags);
+    if (!work_flags) {
+        free(service_list);
+        return 0;
+    }
+    
+    /* First pass: look for INA flag to get default hostname */
+    flag = strtok_r(work_flags, ",", &saveptr);
+    while (flag) {
+        ftn_trim(flag);
+        
+        if (strncmp(flag, "INA:", 4) == 0) {
+            default_hostname = strdup(flag + 4);
+            break;
+        }
+        
+        flag = strtok_r(NULL, ",", &saveptr);
+    }
+    
+    /* Reset for second pass */
+    free(work_flags);
+    work_flags = strdup(flags);
+    if (!work_flags) {
+        if (default_hostname) free(default_hostname);
+        free(service_list);
+        return 0;
+    }
+    
+    /* Second pass: parse protocol flags */
+    flag = strtok_r(work_flags, ",", &saveptr);
+    while (flag) {
+        char* colon_pos;
+        char protocol_name[4];
+        
+        ftn_trim(flag);
+        
+        if (ftn_is_inet_protocol_flag(flag)) {
+            ftn_inet_service_t* new_service;
+            
+            /* Resize array if needed */
+            if (count >= capacity) {
+                ftn_inet_service_t* temp;
+                capacity *= 2;
+                temp = realloc(service_list, capacity * sizeof(ftn_inet_service_t));
+                if (!temp) {
+                    break;
+                }
+                service_list = temp;
+            }
+            
+            new_service = &service_list[count];
+            memset(new_service, 0, sizeof(ftn_inet_service_t));
+            
+            /* Extract protocol name */
+            strncpy(protocol_name, flag, 3);
+            protocol_name[3] = '\0';
+            new_service->protocol = ftn_inet_protocol_from_string(protocol_name);
+            
+            /* Parse hostname and port */
+            colon_pos = strchr(flag, ':');
+            if (colon_pos) {
+                char* second_colon;
+                colon_pos++; /* Skip the first colon */
+                
+                second_colon = strchr(colon_pos, ':');
+                if (second_colon) {
+                    /* Format: PROTOCOL:hostname:port */
+                    *second_colon = '\0';
+                    new_service->hostname = strdup(colon_pos);
+                    new_service->port = atoi(second_colon + 1);
+                    new_service->has_port = 1;
+                } else {
+                    /* Check if it's just a port number */
+                    char* endptr;
+                    unsigned int port_num = strtoul(colon_pos, &endptr, 10);
+                    if (*endptr == '\0' && port_num > 0) {
+                        /* Format: PROTOCOL:port */
+                        new_service->hostname = default_hostname ? strdup(default_hostname) : NULL;
+                        new_service->port = port_num;
+                        new_service->has_port = 1;
+                    } else {
+                        /* Format: PROTOCOL:hostname */
+                        new_service->hostname = strdup(colon_pos);
+                        new_service->port = ftn_inet_protocol_default_port(new_service->protocol);
+                        new_service->has_port = 0;
+                    }
+                }
+            } else {
+                /* Format: PROTOCOL */
+                new_service->hostname = default_hostname ? strdup(default_hostname) : NULL;
+                new_service->port = ftn_inet_protocol_default_port(new_service->protocol);
+                new_service->has_port = 0;
+            }
+            
+            count++;
+        }
+        
+        flag = strtok_r(NULL, ",", &saveptr);
+    }
+    
+    if (default_hostname) free(default_hostname);
+    free(work_flags);
+    
+    if (count == 0) {
+        free(service_list);
+        return 0;
+    }
+    
+    *services = service_list;
+    return count;
+}
+
+void ftn_nodelist_free_inet_services(ftn_inet_service_t* services, size_t count) {
+    size_t i;
+    
+    if (!services) return;
+    
+    for (i = 0; i < count; i++) {
+        if (services[i].hostname) {
+            free(services[i].hostname);
+        }
+    }
+    
+    free(services);
+}
+
+char* ftn_nodelist_filter_inet_flags(const char* flags) {
+    char* work_flags;
+    char* flag;
+    char* saveptr;
+    char* result;
+    size_t result_len = 0;
+    size_t result_capacity = 256;
+    int first_flag = 1;
+    
+    if (!flags) return NULL;
+    
+    result = malloc(result_capacity);
+    if (!result) return NULL;
+    result[0] = '\0';
+    
+    work_flags = strdup(flags);
+    if (!work_flags) {
+        free(result);
+        return NULL;
+    }
+    
+    /* Parse through flags and keep only non-Internet ones */
+    flag = strtok_r(work_flags, ",", &saveptr);
+    while (flag) {
+        ftn_trim(flag);
+        
+        if (!ftn_is_inet_flag(flag)) {
+            size_t flag_len = strlen(flag);
+            size_t needed_len = result_len + flag_len + (first_flag ? 0 : 1) + 1;
+            
+            /* Resize result buffer if needed */
+            if (needed_len > result_capacity) {
+                char* temp;
+                result_capacity = needed_len * 2;
+                temp = realloc(result, result_capacity);
+                if (!temp) {
+                    free(result);
+                    free(work_flags);
+                    return NULL;
+                }
+                result = temp;
+            }
+            
+            /* Add comma separator if not first flag */
+            if (!first_flag) {
+                strcat(result, ",");
+                result_len++;
+            }
+            
+            /* Add the flag */
+            strcat(result, flag);
+            result_len += flag_len;
+            first_flag = 0;
+        }
+        
+        flag = strtok_r(NULL, ",", &saveptr);
+    }
+    
+    free(work_flags);
+    return result;
+}

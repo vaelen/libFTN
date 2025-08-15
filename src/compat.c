@@ -92,4 +92,46 @@ char* strdup(const char* src) {
     return dst;
 }
 
+char* strtok_r(char* str, const char* delim, char** saveptr) {
+    char* start;
+    char* end;
+    
+    if (!delim || !saveptr) return NULL;
+    
+    /* Use str if provided, otherwise continue from saveptr */
+    if (str) {
+        start = str;
+    } else {
+        start = *saveptr;
+    }
+    
+    if (!start) return NULL;
+    
+    /* Skip leading delimiters */
+    while (*start && strchr(delim, *start)) {
+        start++;
+    }
+    
+    if (*start == '\0') {
+        *saveptr = NULL;
+        return NULL;
+    }
+    
+    /* Find end of token */
+    end = start;
+    while (*end && !strchr(delim, *end)) {
+        end++;
+    }
+    
+    /* Set up for next call */
+    if (*end == '\0') {
+        *saveptr = NULL;
+    } else {
+        *end = '\0';
+        *saveptr = end + 1;
+    }
+    
+    return start;
+}
+
 #endif /* POSIX compatibility functions */

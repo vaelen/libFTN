@@ -43,6 +43,7 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args);
 
 /* Non-POSIX environment - provide our own implementations */
 char* strdup(const char* src);
+char* strtok_r(char* str, const char* delim, char** saveptr);
 
 #endif /* POSIX compatibility */
 
