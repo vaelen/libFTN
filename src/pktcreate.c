@@ -10,33 +10,41 @@
 #include <time.h>
 #include <sys/stat.h>
 
+static void print_version(void) {
+    printf("pktcreate (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <output_file>\n", program_name);
     printf("Create a new FidoNet packet (.pkt) file\n");
     printf("\nOptions:\n");
-    printf("  --from-addr <zone:net/node[.point]>  Origin address\n");
-    printf("  --to-addr <zone:net/node[.point]>    Destination address\n");
-    printf("  --netmail                             Create netmail message\n");
-    printf("  --echomail <area>                     Create echomail message for area\n");
-    printf("  --from-user <name>                    From user name\n");
-    printf("  --to-user <name>                      To user name\n");
-    printf("  --subject <text>                      Message subject\n");
-    printf("  --text <text>                         Message text\n");
-    printf("  --private                             Mark message as private\n");
-    printf("  --crash                               Mark message as crash priority\n");
-    printf("  -o <dir>                              Output directory (optional)\n");
+    printf("  -f, --from-addr <zone:net/node[.point]>  Origin address\n");
+    printf("  -t, --to-addr <zone:net/node[.point]>    Destination address\n");
+    printf("  -n, --netmail                             Create netmail message\n");
+    printf("  -e, --echomail <area>                     Create echomail message for area\n");
+    printf("  -F, --from-user <name>                    From user name\n");
+    printf("  -T, --to-user <name>                      To user name\n");
+    printf("  -s, --subject <text>                      Message subject\n");
+    printf("  -m, --text <text>                         Message text\n");
+    printf("  -p, --private                             Mark message as private\n");
+    printf("  -c, --crash                               Mark message as crash priority\n");
+    printf("  -o <dir>                                  Output directory (optional)\n");
+    printf("  -h, --help                                Show this help message\n");
+    printf("      --version                             Show version information\n");
     printf("\nExample (Netmail):\n");
-    printf("  %s --from-addr 1:2/3 --to-addr 1:4/5 --netmail \\\n", program_name);
-    printf("    --from-user \"John Doe\" --to-user \"Jane Smith\" \\\n");
-    printf("    --subject \"Test Message\" --text \"Hello, World!\" test.pkt\n");
+    printf("  %s -f 1:2/3 -t 1:4/5 -n \\\n", program_name);
+    printf("    -F \"John Doe\" -T \"Jane Smith\" \\\n");
+    printf("    -s \"Test Message\" -m \"Hello, World!\" test.pkt\n");
     printf("\nExample (Echomail):\n");
-    printf("  %s --from-addr 1:2/3 --to-addr 1:4/5 --echomail TEST.AREA \\\n", program_name);
-    printf("    --from-user \"John Doe\" --to-user \"All\" \\\n");
-    printf("    --subject \"Test Echo\" --text \"Hello, everyone!\" test.pkt\n");
+    printf("  %s -f 1:2/3 -t 1:4/5 -e TEST.AREA \\\n", program_name);
+    printf("    -F \"John Doe\" -T \"All\" \\\n");
+    printf("    -s \"Test Echo\" -m \"Hello, everyone!\" test.pkt\n");
     printf("\nExample (with output directory):\n");
-    printf("  %s -o /tmp/outgoing --from-addr 1:2/3 --to-addr 1:4/5 --netmail \\\n", program_name);
-    printf("    --from-user \"John Doe\" --to-user \"Jane Smith\" \\\n");
-    printf("    --subject \"Test Message\" --text \"Hello, World!\" test.pkt\n");
+    printf("  %s -o /tmp/outgoing -f 1:2/3 -t 1:4/5 -n \\\n", program_name);
+    printf("    -F \"John Doe\" -T \"Jane Smith\" \\\n");
+    printf("    -s \"Test Message\" -m \"Hello, World!\" test.pkt\n");
 }
 
 static ftn_error_t parse_address(const char* addr_str, ftn_address_t* addr) {
@@ -99,32 +107,38 @@ int main(int argc, char* argv[]) {
     
     /* Parse command line arguments */
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--from-addr") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if ((strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--from-addr") == 0) && i + 1 < argc) {
             if (parse_address(argv[++i], &from_addr) != FTN_OK) {
                 printf("Error: Invalid from address: %s\n", argv[i]);
                 return 1;
             }
-        } else if (strcmp(argv[i], "--to-addr") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--to-addr") == 0) && i + 1 < argc) {
             if (parse_address(argv[++i], &to_addr) != FTN_OK) {
                 printf("Error: Invalid to address: %s\n", argv[i]);
                 return 1;
             }
-        } else if (strcmp(argv[i], "--netmail") == 0) {
+        } else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--netmail") == 0) {
             is_netmail = 1;
-        } else if (strcmp(argv[i], "--echomail") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--echomail") == 0) && i + 1 < argc) {
             is_echomail = 1;
             echo_area = argv[++i];
-        } else if (strcmp(argv[i], "--from-user") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-F") == 0 || strcmp(argv[i], "--from-user") == 0) && i + 1 < argc) {
             from_user = argv[++i];
-        } else if (strcmp(argv[i], "--to-user") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-T") == 0 || strcmp(argv[i], "--to-user") == 0) && i + 1 < argc) {
             to_user = argv[++i];
-        } else if (strcmp(argv[i], "--subject") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--subject") == 0) && i + 1 < argc) {
             subject = argv[++i];
-        } else if (strcmp(argv[i], "--text") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--text") == 0) && i + 1 < argc) {
             text = argv[++i];
-        } else if (strcmp(argv[i], "--private") == 0) {
+        } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--private") == 0) {
             is_private = 1;
-        } else if (strcmp(argv[i], "--crash") == 0) {
+        } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--crash") == 0) {
             is_crash = 1;
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             output_dir = argv[++i];

@@ -91,9 +91,9 @@ The library includes comprehensive unit tests for all major functionality:
 make test
 
 # Run specific test suites
-./bin/test_rfc822      # RFC822 conversion tests (8/8 tests)
-./bin/test_packet      # Packet parsing tests
-./bin/test_nodelist    # Nodelist parsing tests
+./bin/tests/test_rfc822      # RFC822 conversion tests (13/13 tests)
+./bin/tests/test_packet      # Packet parsing tests
+./bin/tests/test_nodelist    # Nodelist parsing tests
 ```
 
 All RFC822 conversion functionality includes full roundtrip testing to ensure message fidelity is preserved during FTN ↔ RFC822 conversions.

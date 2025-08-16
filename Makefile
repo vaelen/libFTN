@@ -14,12 +14,12 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
 TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c
-TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/%)
+TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs  
 EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c
@@ -39,6 +39,9 @@ $(LIBDIR):
 $(BINDIR):
 	mkdir -p $(BINDIR)
 
+$(BINDIR)/tests:
+	mkdir -p $(BINDIR)/tests
+
 # Build object files
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -48,7 +51,7 @@ $(LIBRARY): $(OBJECTS) | $(LIBDIR)
 	ar rcs $@ $(OBJECTS)
 
 # Build test programs
-$(BINDIR)/test_%: $(TESTDIR)/test_%.c $(LIBRARY) | $(BINDIR)
+$(BINDIR)/tests/test_%: $(TESTDIR)/test_%.c $(LIBRARY) | $(BINDIR)/tests
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIBDIR) -lftn -o $@
 
 # Build example programs

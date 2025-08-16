@@ -11,15 +11,22 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+static void print_version(void) {
+    printf("msg2pkt (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <output_dir> <rfc822_files...>\n", program_name);
     printf("\n");
     printf("Convert RFC822 message files to FidoNet packet format.\n");
     printf("\n");
     printf("Options:\n");
-    printf("  -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)\n");
-    printf("  -s <dir>     Move processed files to specified 'Sent' directory\n");
-    printf("  -h           Show this help message\n");
+    printf("  -d, --domain <domain>  Domain name for RFC822 addresses (default: fidonet.org)\n");
+    printf("  -s, --sent <dir>       Move processed files to specified 'Sent' directory\n");
+    printf("  -h, --help             Show this help message\n");
+    printf("      --version          Show version information\n");
     printf("\n");
     printf("Arguments:\n");
     printf("  output_dir   Directory for packet files\n");
@@ -242,18 +249,21 @@ int main(int argc, char* argv[]) {
     
     /* Parse command line arguments */
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
-        } else if (strcmp(argv[i], "-d") == 0) {
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--domain") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "Error: -d option requires a domain argument\n");
+                fprintf(stderr, "Error: %s option requires a domain argument\n", argv[i]);
                 return 1;
             }
             domain = argv[++i];
-        } else if (strcmp(argv[i], "-s") == 0) {
+        } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--sent") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "Error: -s option requires a directory argument\n");
+                fprintf(stderr, "Error: %s option requires a directory argument\n", argv[i]);
                 return 1;
             }
             sent_dir = argv[++i];

@@ -7,9 +7,18 @@
 
 #include "ftn.h"
 
+static void print_version(void) {
+    printf("nllookup (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* progname) {
-    printf("Usage: %s <nodelist_file> <command> [args]\n", progname);
-    printf("Commands:\n");
+    printf("Usage: %s [options] <nodelist_file> <command> [args]\n", progname);
+    printf("Options:\n");
+    printf("  -h, --help     Show this help message\n");
+    printf("      --version  Show version information\n");
+    printf("\nCommands:\n");
     printf("  addr <zone:net/node>     - Find by FTN address\n");
     printf("  name <name>              - Find by BBS name\n");
     printf("  sysop <sysop>            - Find by sysop name\n");
@@ -70,6 +79,17 @@ int main(int argc, char* argv[]) {
     unsigned int* list;
     ftn_nodelist_entry_t** nodes;
     size_t count, i;
+    
+    /* Check for options first */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[1], "--version") == 0) {
+            print_version();
+            return 0;
+        }
+    }
     
     if (argc < 3) {
         print_usage(argv[0]);

@@ -11,14 +11,21 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+static void print_version(void) {
+    printf("pkt2mail (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <maildir_path> <packet_files...>\n", program_name);
     printf("\n");
     printf("Convert FidoNet packet files to maildir format.\n");
     printf("\n");
     printf("Options:\n");
-    printf("  --domain <name>  Domain name for RFC822 addresses (default: fidonet.org)\n");
-    printf("  --help           Show this help message\n");
+    printf("  -d, --domain <name>  Domain name for RFC822 addresses (default: fidonet.org)\n");
+    printf("  -h, --help           Show this help message\n");
+    printf("      --version        Show version information\n");
     printf("\n");
     printf("Arguments:\n");
     printf("  maildir_path     Path to maildir directory\n");
@@ -267,10 +274,13 @@ int main(int argc, char* argv[]) {
     
     /* Parse command line arguments */
     for (arg_index = 1; arg_index < argc; arg_index++) {
-        if (strcmp(argv[arg_index], "--domain") == 0 && arg_index + 1 < argc) {
+        if ((strcmp(argv[arg_index], "-d") == 0 || strcmp(argv[arg_index], "--domain") == 0) && arg_index + 1 < argc) {
             domain = argv[++arg_index];
-        } else if (strcmp(argv[arg_index], "--help") == 0) {
+        } else if (strcmp(argv[arg_index], "-h") == 0 || strcmp(argv[arg_index], "--help") == 0) {
             print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[arg_index], "--version") == 0) {
+            print_version();
             return 0;
         } else if (argv[arg_index][0] == '-') {
             fprintf(stderr, "Error: Unknown option: %s\n", argv[arg_index]);
@@ -303,9 +313,11 @@ int main(int argc, char* argv[]) {
     
     j = 0;
     for (arg_index = 1; arg_index < argc; arg_index++) {
-        if (strcmp(argv[arg_index], "--domain") == 0) {
+        if (strcmp(argv[arg_index], "-d") == 0 || strcmp(argv[arg_index], "--domain") == 0) {
             arg_index++; /* Skip domain value */
-        } else if (strcmp(argv[arg_index], "--help") == 0) {
+        } else if (strcmp(argv[arg_index], "-h") == 0 || strcmp(argv[arg_index], "--help") == 0) {
+            /* Skip */
+        } else if (strcmp(argv[arg_index], "--version") == 0) {
             /* Skip */
         } else if (argv[arg_index][0] == '-') {
             /* Skip unknown options */

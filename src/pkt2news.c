@@ -13,14 +13,21 @@
 #include <ctype.h>
 #include <unistd.h>
 
+static void print_version(void) {
+    printf("pkt2news (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <usenet_root> <packet_files...>\n", program_name);
     printf("\n");
     printf("Convert FidoNet Echomail packets to USENET articles.\n");
     printf("\n");
     printf("Options:\n");
-    printf("  -n <network>  Network name for newsgroups (default: fidonet)\n");
-    printf("  -h            Show this help message\n");
+    printf("  -n, --network <network>  Network name for newsgroups (default: fidonet)\n");
+    printf("  -h, --help               Show this help message\n");
+    printf("      --version            Show version information\n");
     printf("\n");
     printf("Arguments:\n");
     printf("  usenet_root   Root directory for USENET article storage\n");
@@ -266,12 +273,15 @@ int main(int argc, char* argv[]) {
     
     /* Parse command line arguments */
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
-        } else if (strcmp(argv[i], "-n") == 0) {
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--network") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "Error: -n option requires a network argument\n");
+                fprintf(stderr, "Error: %s option requires a network argument\n", argv[i]);
                 return 1;
             }
             network = argv[++i];

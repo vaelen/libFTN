@@ -8,10 +8,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void print_version(void) {
+    printf("pktview (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
-    printf("Usage: %s <packet_file> <message_number>\n", program_name);
+    printf("Usage: %s [options] <packet_file> <message_number>\n", program_name);
     printf("Display a specific message from a FidoNet packet (.pkt) file\n");
-    printf("\nExample:\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("  -h, --help     Show this help message\n");
+    printf("      --version  Show version information\n");
+    printf("\n");
+    printf("Example:\n");
     printf("  %s messages.pkt 1\n", program_name);
 }
 
@@ -150,28 +161,51 @@ int main(int argc, char* argv[]) {
     ftn_packet_t* packet;
     ftn_error_t result;
     int message_num;
+    char* packet_file = NULL;
+    int i;
     
-    if (argc != 3) {
+    /* Parse command line arguments */
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if (argv[i][0] == '-') {
+            fprintf(stderr, "Error: Unknown option: %s\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        } else {
+            if (!packet_file) {
+                packet_file = argv[i];
+            } else {
+                message_num = atoi(argv[i]);
+                break;
+            }
+        }
+    }
+    
+    if (!packet_file || i >= argc) {
         print_usage(argv[0]);
         return 1;
     }
     
-    message_num = atoi(argv[2]);
     if (message_num < 1) {
         printf("Error: Message number must be 1 or greater\n");
         return 1;
     }
     
-    printf("Loading packet: %s\n\n", argv[1]);
+    printf("Loading packet: %s\n\n", packet_file);
     
-    result = ftn_packet_load(argv[1], &packet);
+    result = ftn_packet_load(packet_file, &packet);
     if (result != FTN_OK) {
         switch (result) {
             case FTN_ERROR_FILE_NOT_FOUND:
-                printf("Error: File not found: %s\n", argv[1]);
+                printf("Error: File not found: %s\n", packet_file);
                 break;
             case FTN_ERROR_INVALID_FORMAT:
-                printf("Error: Invalid packet format: %s\n", argv[1]);
+                printf("Error: Invalid packet format: %s\n", packet_file);
                 break;
             case FTN_ERROR_MEMORY:
                 printf("Error: Out of memory\n");

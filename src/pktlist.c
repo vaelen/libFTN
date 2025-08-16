@@ -8,9 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void print_version(void) {
+    printf("pktlist (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
-    printf("Usage: %s <packet_file1> [packet_file2] ...\n", program_name);
+    printf("Usage: %s [options] <packet_file1> [packet_file2] ...\n", program_name);
     printf("Lists all messages in FidoNet packet (.pkt) files\n");
+    printf("\nOptions:\n");
+    printf("  -h, --help     Show this help message\n");
+    printf("      --version  Show version information\n");
     printf("\nExamples:\n");
     printf("  %s messages.pkt\n", program_name);
     printf("  %s *.pkt\n", program_name);
@@ -133,17 +142,36 @@ int main(int argc, char* argv[]) {
     int files_processed = 0;
     int files_failed = 0;
     int total_files;
+    int first_file_arg = 1;
     
-    if (argc < 2) {
+    /* Parse options */
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if (argv[i][0] == '-') {
+            fprintf(stderr, "Error: Unknown option: %s\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        } else {
+            first_file_arg = i;
+            break;
+        }
+    }
+    
+    if (first_file_arg >= argc) {
         print_usage(argv[0]);
         return 1;
     }
     
-    total_files = argc - 1;
+    total_files = argc - first_file_arg;
     
-    for (i = 1; i < argc; i++) {
+    for (i = first_file_arg; i < argc; i++) {
         /* Add separator between files when processing multiple files */
-        if (total_files > 1 && i > 1) {
+        if (total_files > 1 && i > first_file_arg) {
             printf("\n");
             printf("================================================================================\n");
             printf("\n");

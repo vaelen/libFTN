@@ -504,6 +504,341 @@ static int test_roundtrip_conversion(void) {
     return result;
 }
 
+/* Test USENET article detection */
+static int test_usenet_detection(void) {
+    rfc822_message_t* rfc_msg;
+    const char* newsgroups;
+    
+    rfc_msg = rfc822_message_new();
+    if (!rfc_msg) return 0;
+    
+    /* Test regular RFC822 message (no Newsgroups header) */
+    rfc822_message_add_header(rfc_msg, "From", "sender@example.com");
+    rfc822_message_add_header(rfc_msg, "To", "recipient@example.com");
+    rfc822_message_add_header(rfc_msg, "Subject", "Test Email");
+    
+    newsgroups = rfc822_message_get_header(rfc_msg, "Newsgroups");
+    if (newsgroups != NULL) {
+        rfc822_message_free(rfc_msg);
+        return 0; /* Should be NULL for regular email */
+    }
+    
+    /* Add Newsgroups header to make it a USENET article */
+    rfc822_message_add_header(rfc_msg, "Newsgroups", "fidonet.fsx_gen");
+    
+    newsgroups = rfc822_message_get_header(rfc_msg, "Newsgroups");
+    if (!newsgroups || strcmp(newsgroups, "fidonet.fsx_gen") != 0) {
+        rfc822_message_free(rfc_msg);
+        return 0;
+    }
+    
+    rfc822_message_free(rfc_msg);
+    return 1;
+}
+
+/* Test USENET to FTN conversion with proper address handling */
+static int test_usenet_to_ftn_conversion(void) {
+    rfc822_message_t* usenet_msg;
+    ftn_message_t* ftn_msg = NULL;
+    
+    usenet_msg = rfc822_message_new();
+    if (!usenet_msg) return 0;
+    
+    /* Set up USENET article with From header and X-FTN-From for address */
+    rfc822_message_add_header(usenet_msg, "From", "John Doe <john@example.com>");
+    rfc822_message_add_header(usenet_msg, "X-FTN-From", "21:1/100.0");
+    rfc822_message_add_header(usenet_msg, "Newsgroups", "fidonet.fsx_gen");
+    rfc822_message_add_header(usenet_msg, "Subject", "Test USENET Article");
+    rfc822_message_add_header(usenet_msg, "X-FTN-Area", "FSX_GEN");
+    rfc822_message_set_body(usenet_msg, "This is a USENET article body.");
+    
+    /* Convert to FTN */
+    if (usenet_to_ftn(usenet_msg, "fidonet", &ftn_msg) != FTN_OK) {
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    if (!ftn_msg) {
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    /* Check that it's detected as Echomail */
+    if (ftn_msg->type != FTN_MSG_ECHOMAIL) {
+        ftn_message_free(ftn_msg);
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    /* Check addresses from X-FTN-From */
+    if (ftn_msg->orig_addr.zone != 21 || ftn_msg->orig_addr.net != 1 ||
+        ftn_msg->orig_addr.node != 100 || ftn_msg->orig_addr.point != 0) {
+        ftn_message_free(ftn_msg);
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    /* Check that From user is extracted from From header */
+    if (!ftn_msg->from_user || strcmp(ftn_msg->from_user, "John Doe") != 0) {
+        ftn_message_free(ftn_msg);
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    /* Check that To user is set to "All" for Echomail */
+    if (!ftn_msg->to_user || strcmp(ftn_msg->to_user, "All") != 0) {
+        ftn_message_free(ftn_msg);
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    /* Check area */
+    if (!ftn_msg->area || strcmp(ftn_msg->area, "FSX_GEN") != 0) {
+        ftn_message_free(ftn_msg);
+        rfc822_message_free(usenet_msg);
+        return 0;
+    }
+    
+    ftn_message_free(ftn_msg);
+    rfc822_message_free(usenet_msg);
+    return 1;
+}
+
+/* Test FTN to USENET conversion */
+static int test_ftn_to_usenet_conversion(void) {
+    ftn_message_t* ftn_msg;
+    rfc822_message_t* usenet_msg = NULL;
+    const char* newsgroups;
+    const char* area;
+    
+    ftn_msg = ftn_message_new(FTN_MSG_ECHOMAIL);
+    if (!ftn_msg) return 0;
+    
+    /* Set up FTN Echomail message */
+    ftn_msg->orig_addr.zone = 21;
+    ftn_msg->orig_addr.net = 1;
+    ftn_msg->orig_addr.node = 100;
+    ftn_msg->orig_addr.point = 0;
+    
+    ftn_msg->from_user = malloc(strlen("John Doe") + 1);
+    strcpy(ftn_msg->from_user, "John Doe");
+    
+    ftn_msg->to_user = malloc(strlen("All") + 1);
+    strcpy(ftn_msg->to_user, "All");
+    
+    ftn_msg->subject = malloc(strlen("Test Echomail") + 1);
+    strcpy(ftn_msg->subject, "Test Echomail");
+    
+    ftn_msg->area = malloc(strlen("FSX_GEN") + 1);
+    strcpy(ftn_msg->area, "FSX_GEN");
+    
+    ftn_msg->text = malloc(strlen("Test echomail body") + 1);
+    strcpy(ftn_msg->text, "Test echomail body");
+    
+    /* Convert to USENET */
+    if (ftn_to_usenet(ftn_msg, "fidonet", &usenet_msg) != FTN_OK) {
+        ftn_message_free(ftn_msg);
+        return 0;
+    }
+    
+    if (!usenet_msg) {
+        ftn_message_free(ftn_msg);
+        return 0;
+    }
+    
+    /* Check Newsgroups header */
+    newsgroups = rfc822_message_get_header(usenet_msg, "Newsgroups");
+    if (!newsgroups || strcmp(newsgroups, "fidonet.fsx_gen") != 0) {
+        rfc822_message_free(usenet_msg);
+        ftn_message_free(ftn_msg);
+        return 0;
+    }
+    
+    /* Check X-FTN-Area header */
+    area = rfc822_message_get_header(usenet_msg, "X-FTN-Area");
+    if (!area || strcmp(area, "FSX_GEN") != 0) {
+        rfc822_message_free(usenet_msg);
+        ftn_message_free(ftn_msg);
+        return 0;
+    }
+    
+    rfc822_message_free(usenet_msg);
+    ftn_message_free(ftn_msg);
+    return 1;
+}
+
+/* Test roundtrip USENET conversion (FTN -> USENET -> FTN) */
+static int test_usenet_roundtrip_conversion(void) {
+    ftn_message_t* original;
+    rfc822_message_t* usenet_msg = NULL;
+    ftn_message_t* converted = NULL;
+    int result;
+    
+    original = ftn_message_new(FTN_MSG_ECHOMAIL);
+    if (!original) return 0;
+    
+    /* Set up original FTN Echomail message */
+    original->orig_addr.zone = 21;
+    original->orig_addr.net = 1;
+    original->orig_addr.node = 100;
+    original->orig_addr.point = 5;
+    
+    original->dest_addr.zone = 21;
+    original->dest_addr.net = 1;
+    original->dest_addr.node = 200;
+    original->dest_addr.point = 0;
+    
+    original->from_user = malloc(strlen("Test User") + 1);
+    strcpy(original->from_user, "Test User");
+    
+    original->to_user = malloc(strlen("All") + 1);
+    strcpy(original->to_user, "All");
+    
+    original->subject = malloc(strlen("Roundtrip USENET Test") + 1);
+    strcpy(original->subject, "Roundtrip USENET Test");
+    
+    original->area = malloc(strlen("TEST_ECHO") + 1);
+    strcpy(original->area, "TEST_ECHO");
+    
+    original->text = malloc(strlen("This is a roundtrip USENET test message.") + 1);
+    strcpy(original->text, "This is a roundtrip USENET test message.");
+    
+    original->timestamp = 1704067200;
+    
+    /* Convert FTN -> USENET */
+    if (ftn_to_usenet(original, "fidonet", &usenet_msg) != FTN_OK) {
+        ftn_message_free(original);
+        return 0;
+    }
+    
+    /* Convert USENET -> FTN */
+    if (usenet_to_ftn(usenet_msg, "fidonet", &converted) != FTN_OK) {
+        rfc822_message_free(usenet_msg);
+        ftn_message_free(original);
+        return 0;
+    }
+    
+    /* Compare key fields */
+    result = 1;
+    
+    if (converted->type != FTN_MSG_ECHOMAIL) {
+        result = 0;
+    }
+    
+    if (converted->orig_addr.zone != original->orig_addr.zone ||
+        converted->orig_addr.net != original->orig_addr.net ||
+        converted->orig_addr.node != original->orig_addr.node ||
+        converted->orig_addr.point != original->orig_addr.point) {
+        result = 0;
+    }
+    
+    if (!converted->from_user || !original->from_user ||
+        strcmp(converted->from_user, original->from_user) != 0) {
+        result = 0;
+    }
+    
+    if (!converted->to_user || strcmp(converted->to_user, "All") != 0) {
+        result = 0;
+    }
+    
+    if (!converted->subject || !original->subject ||
+        strcmp(converted->subject, original->subject) != 0) {
+        result = 0;
+    }
+    
+    if (!converted->area || !original->area ||
+        strcmp(converted->area, original->area) != 0) {
+        result = 0;
+    }
+    
+    if (!converted->text || !original->text ||
+        strcmp(converted->text, original->text) != 0) {
+        result = 0;
+    }
+    
+    ftn_message_free(original);
+    ftn_message_free(converted);
+    rfc822_message_free(usenet_msg);
+    
+    return result;
+}
+
+/* Test zone preservation in packet headers during message conversion */
+static int test_zone_preservation_in_packets(void) {
+    ftn_packet_t* packet;
+    ftn_message_t* msg;
+    rfc822_message_t* rfc_msg;
+    ftn_message_t* converted_msg = NULL;
+    
+    /* Create a packet and message to simulate msg2pkt functionality */
+    packet = ftn_packet_new();
+    if (!packet) return 0;
+    
+    /* Create RFC822 USENET article with zone information */
+    rfc_msg = rfc822_message_new();
+    if (!rfc_msg) {
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    rfc822_message_add_header(rfc_msg, "From", "Test User <test@example.com>");
+    rfc822_message_add_header(rfc_msg, "X-FTN-From", "21:1/100.0");
+    rfc822_message_add_header(rfc_msg, "Newsgroups", "fidonet.test_area");
+    rfc822_message_add_header(rfc_msg, "Subject", "Zone Test");
+    rfc822_message_add_header(rfc_msg, "X-FTN-Area", "TEST_AREA");
+    rfc822_message_set_body(rfc_msg, "Testing zone preservation");
+    
+    /* Convert USENET article to FTN message */
+    if (usenet_to_ftn(rfc_msg, "fidonet", &converted_msg) != FTN_OK) {
+        rfc822_message_free(rfc_msg);
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    /* Add message to packet */
+    if (ftn_packet_add_message(packet, converted_msg) != FTN_OK) {
+        ftn_message_free(converted_msg);
+        rfc822_message_free(rfc_msg);
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    /* Update packet header with zone information from first message (simulating msg2pkt behavior) */
+    packet->header.orig_zone = converted_msg->orig_addr.zone;
+    packet->header.orig_net = converted_msg->orig_addr.net;
+    packet->header.orig_node = converted_msg->orig_addr.node;
+    packet->header.dest_zone = converted_msg->dest_addr.zone;
+    packet->header.dest_net = converted_msg->dest_addr.net;
+    packet->header.dest_node = converted_msg->dest_addr.node;
+    
+    /* Verify zone information is preserved in packet header */
+    if (packet->header.orig_zone != 21) {
+        rfc822_message_free(rfc_msg);
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    if (packet->header.orig_net != 1 || packet->header.orig_node != 100) {
+        rfc822_message_free(rfc_msg);
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    /* Verify message zone matches packet header */
+    msg = packet->messages[0];
+    if (msg->orig_addr.zone != packet->header.orig_zone ||
+        msg->orig_addr.net != packet->header.orig_net ||
+        msg->orig_addr.node != packet->header.orig_node) {
+        rfc822_message_free(rfc_msg);
+        ftn_packet_free(packet);
+        return 0;
+    }
+    
+    rfc822_message_free(rfc_msg);
+    ftn_packet_free(packet);
+    return 1;
+}
+
 int main(void) {
     printf("Running RFC822 conversion library tests...\n\n");
     
@@ -515,6 +850,11 @@ int main(void) {
     TEST(ftn_to_rfc822_conversion);
     TEST(rfc822_to_ftn_conversion);
     TEST(roundtrip_conversion);
+    TEST(usenet_detection);
+    TEST(usenet_to_ftn_conversion);
+    TEST(ftn_to_usenet_conversion);
+    TEST(usenet_roundtrip_conversion);
+    TEST(zone_preservation_in_packets);
     
     printf("\nTest Results: %d/%d tests passed\n", test_passed, test_count);
     

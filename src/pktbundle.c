@@ -9,12 +9,20 @@
 #include <string.h>
 #include <time.h>
 
+static void print_version(void) {
+    printf("pktbundle (libFTN) %s\n", ftn_get_version());
+    printf("%s\n", ftn_get_copyright());
+    printf("License: %s\n", ftn_get_license());
+}
+
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <output_file> <input_file1> [input_file2] ...\n", program_name);
     printf("Bundle multiple FidoNet packet files into a single packet\n");
     printf("\nOptions:\n");
     printf("  --from-addr <zone:net/node[.point]>  Origin address for bundle\n");
     printf("  --to-addr <zone:net/node[.point]>    Destination address for bundle\n");
+    printf("  -h, --help                           Show this help message\n");
+    printf("      --version                        Show version information\n");
     printf("\nExample:\n");
     printf("  %s --from-addr 1:2/3 --to-addr 1:4/5 bundle.pkt msg1.pkt msg2.pkt\n", program_name);
     printf("\nNote: If addresses are not specified, they will be taken from the first packet\n");
@@ -115,7 +123,15 @@ int main(int argc, char* argv[]) {
     
     /* Parse command line arguments */
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--from-addr") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            if (input_files) free(input_files);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            print_version();
+            if (input_files) free(input_files);
+            return 0;
+        } else if (strcmp(argv[i], "--from-addr") == 0 && i + 1 < argc) {
             if (parse_address(argv[++i], &from_addr) != FTN_OK) {
                 printf("Error: Invalid from address: %s\n", argv[i]);
                 return 1;
