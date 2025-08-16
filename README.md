@@ -43,17 +43,16 @@ Example:
 Converts RFC822 messages to FidoNet packet format. Addresses are automatically parsed from message headers.
 
 ```bash
-./bin/msg2pkt [options] <rfc822_files...>
+./bin/msg2pkt [options] <output_dir> <rfc822_files...>
 
 Options:
   -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)
   -s <dir>     Move processed files to specified 'Sent' directory
-  -o <dir>     Output directory for packet files (default: current directory)
   -h           Show help message
 
 Example:
-  ./bin/msg2pkt -o outbound message1.txt message2.txt
-  ./bin/msg2pkt -s sent -d mynet.org *.txt
+  ./bin/msg2pkt outbound message1.txt message2.txt
+  ./bin/msg2pkt -s sent -d mynet.org outbound *.txt
 ```
 
 ### pkt2news
@@ -105,6 +104,7 @@ All RFC822 conversion functionality includes full roundtrip testing to ensure me
 - [docs](docs) - The FTN technical documentation, originally retrieved from the [FTSC Documents](http://ftsc.org/docs/) website.
 - [examples](examples) - Example files.
   - [maildir](examples/maildir) - An example maildir formatted mailbox.
+  - [news](examples/news) - An example USENET article collection.
   - [echomail.pkt](examples/echomail.pkt) - An example FidoNet packet containing an echomail message.
   - [netmail.pkt](examples/netmail.pkt) - An example FidoNet packet containing a netmail message.
   - [bundle.pkt](examples/bundle.pkt) - An example FidoNet packet containing multiple messages.
@@ -113,7 +113,7 @@ All RFC822 conversion functionality includes full roundtrip testing to ensure me
 - [obj](obj) - Temporary object files are placed here during compilation.
 - [src](src) - C source code is placed here.
 - [tests](tests) - The C source code and related files required for unit tests are placed here.
-- [tmp](tmp) - Used to store temporary files for building or testing.
+- [tmp](tmp) - Used to store temporary files for building or testing. Use this instead of /tmp.
 - [Makefile](Makefile) - Contains the information that `make` needs to properly build the library and executables.
 - [README.md](README.md) - This file.
 - [TODO.md](TODO.md)  - Should be kept up to date with remaining tasks that need to be completed.

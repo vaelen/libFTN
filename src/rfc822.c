@@ -1150,6 +1150,12 @@ ftn_error_t ftn_to_usenet(const ftn_message_t* ftn_msg, const char* network, rfc
     error = rfc822_message_add_header(msg, "X-FTN-From", buffer);
     if (error != FTN_OK) goto error_cleanup;
     
+    /* Add X-FTN-Area header */
+    if (ftn_msg->area) {
+        error = rfc822_message_add_header(msg, "X-FTN-Area", ftn_msg->area);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
     if (ftn_msg->attributes) {
         snprintf(buffer, sizeof(buffer), "0x%04X", ftn_msg->attributes);
         error = rfc822_message_add_header(msg, "X-FTN-Attributes", buffer);
@@ -1226,11 +1232,43 @@ ftn_error_t usenet_to_ftn(const rfc822_message_t* usenet_msg, const char* networ
     /* Extract From user name from regular From header */
     header_value = rfc822_message_get_header(usenet_msg, "From");
     if (header_value) {
+        /* Try FTN-style address first */
         ftn_address_t temp_addr;
         error = rfc822_address_to_ftn(header_value, "fidonet.org", &temp_addr, &name);
         if (error == FTN_OK && name) {
             msg->from_user = name;
             name = NULL;
+        } else {
+            /* For regular email addresses, extract name from "Name <email>" format */
+            const char* start = header_value;
+            const char* bracket = strchr(header_value, '<');
+            const char* end;
+            if (bracket && bracket > start) {
+                /* Skip quotes if present */
+                if (*start == '"') start++;
+                end = bracket - 1;
+                /* Skip trailing quotes and whitespace */
+                while (end > start && (*end == ' ' || *end == '"')) end--;
+                if (end > start) {
+                    size_t name_len = end - start + 1;
+                    msg->from_user = malloc(name_len + 1);
+                    if (msg->from_user) {
+                        strncpy(msg->from_user, start, name_len);
+                        msg->from_user[name_len] = '\0';
+                    }
+                }
+            } else if (!bracket) {
+                /* Just the email address, use the part before @ as name */
+                const char* at = strchr(header_value, '@');
+                if (at && at > start) {
+                    size_t name_len = at - start;
+                    msg->from_user = malloc(name_len + 1);
+                    if (msg->from_user) {
+                        strncpy(msg->from_user, start, name_len);
+                        msg->from_user[name_len] = '\0';
+                    }
+                }
+            }
         }
     }
     

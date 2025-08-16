@@ -12,17 +12,17 @@
 #include <dirent.h>
 
 static void print_usage(const char* program_name) {
-    printf("Usage: %s [options] <rfc822_files...>\n", program_name);
+    printf("Usage: %s [options] <output_dir> <rfc822_files...>\n", program_name);
     printf("\n");
     printf("Convert RFC822 message files to FidoNet packet format.\n");
     printf("\n");
     printf("Options:\n");
     printf("  -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)\n");
     printf("  -s <dir>     Move processed files to specified 'Sent' directory\n");
-    printf("  -o <dir>     Output directory for packet files (default: current directory)\n");
     printf("  -h           Show this help message\n");
     printf("\n");
     printf("Arguments:\n");
+    printf("  output_dir   Directory for packet files\n");
     printf("  rfc822_files One or more RFC822 message files to convert\n");
     printf("\n");
     printf("All messages will be placed into a single packet file with auto-generated name.\n");
@@ -257,38 +257,37 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             sent_dir = argv[++i];
-        } else if (strcmp(argv[i], "-o") == 0) {
-            if (i + 1 >= argc) {
-                fprintf(stderr, "Error: -o option requires a directory argument\n");
-                return 1;
-            }
-            output_dir = argv[++i];
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Error: Unknown option: %s\n", argv[i]);
             print_usage(argv[0]);
             return 1;
         } else {
-            /* This is an input file */
-            if (input_count == 0) {
-                input_files = malloc(sizeof(char*) * (argc - i));
-                if (!input_files) {
-                    fprintf(stderr, "Error: Out of memory\n");
-                    return 1;
+            /* First non-option argument is output directory */
+            if (!output_dir) {
+                output_dir = argv[i];
+            } else {
+                /* Subsequent arguments are input files */
+                if (input_count == 0) {
+                    input_files = malloc(sizeof(char*) * (argc - i));
+                    if (!input_files) {
+                        fprintf(stderr, "Error: Out of memory\n");
+                        return 1;
+                    }
                 }
+                input_files[input_count++] = argv[i];
             }
-            input_files[input_count++] = argv[i];
         }
     }
     
-    if (input_count == 0) {
-        fprintf(stderr, "Error: No input files specified\n");
+    if (!output_dir || input_count == 0) {
+        fprintf(stderr, "Error: Both output directory and input files are required\n");
         print_usage(argv[0]);
         free(input_files);
         return 1;
     }
     
     /* Create output directory if it doesn't exist */
-    if (output_dir) {
+    {
         struct stat st;
         if (stat(output_dir, &st) != 0) {
             if (mkdir(output_dir, 0755) != 0) {
@@ -314,7 +313,7 @@ int main(int argc, char* argv[]) {
     printf("Generated packet filename: %s\n", output_filename);
     
     printf("Converting %d RFC822 files to FidoNet packet format...\n", input_count);
-    printf("Output directory: %s\n", output_dir ? output_dir : ".");
+    printf("Output directory: %s\n", output_dir);
     printf("Output file: %s\n", output_filename);
     if (sent_dir) {
         printf("Sent directory: %s\n", sent_dir);
