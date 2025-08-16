@@ -1,0 +1,36 @@
+From: "Areafix" <21:1/100@fidonet.org>
+To: "vaelen" <21:1/141@fidonet.org>
+Subject: Areafix reply: list request
+Date: Fri, 15 Aug 2025 09:46:48 GMT
+Message-ID: 21:1/100 689ed7d8
+X-FTN-From: 21:1/100.0
+X-FTN-To: 21:1/141.0
+X-FTN-Attributes: 0x0001
+X-FTN-Control: FLAGS NPD
+
+Available areas for 21:1/141
+fsxNet
+*S   FSX_ADS ................................................. "Ads + ANSI Art"
+*S   FSX_BBS ................................................ "BBS Support/Dev"
+*S   FSX_BOT .......................................... "Automated roBOT Posts"
+*S   FSX_CRY ................................................. "Cryptographics"
+*S   FSX_DAT .................................................. "InterBBS Data"
+*S   FSX_GAMING ................................................ "Games/Gaming"
+*S   FSX_GEN .......................................... "General Chat + More.."
+*S   FSX_HAM ............................................... "HAM + Radio Chat"
+*S   FSX_MYS ......................................... "Mystic BBS Support/Dev"
+*S   FSX_NET ................................................... "fsxNet Admin"
+*S   FSX_RETRO ......................................... "Retro Computing/Tech"
+*S   FSX_TST .............................................. "fsxNet Test Arena"
+*S   FSX_VIDEO .......................................... "Movies/Music + More"
+'*' = area is active
+'R' = area is readonly for you
+'W' = area is writeonly for you
+'M' = area is mandatory for you
+'S' = area is rescanable
+ 13 area(s) available, 13 area(s) linked
+Following is the original message text
+--------------------------------------
+%HELP
+%LIST
+--------------------------------------

@@ -45,6 +45,16 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args);
 char* strdup(const char* src);
 char* strtok_r(char* str, const char* delim, char** saveptr);
 
+/* String comparison functions for non-POSIX environments */
+#if defined(_WIN32)
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#else
+/* Provide our own implementations for platforms without these functions */
+int strcasecmp(const char *s1, const char *s2);
+int strncasecmp(const char *s1, const char *s2, size_t n);
+#endif
+
 #endif /* POSIX compatibility */
 
 #endif /* COMPAT_H */

@@ -1,0 +1,794 @@
+/*
+ * libFTN - RFC822 Message Format Implementation
+ * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
+ */
+
+#include "../include/ftn.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <ctype.h>
+
+
+#define RFC822_INITIAL_HEADERS 10
+#define RFC822_HEADER_GROWTH 5
+
+/* Create a new RFC822 message */
+rfc822_message_t* rfc822_message_new(void) {
+    rfc822_message_t* message = malloc(sizeof(rfc822_message_t));
+    if (!message) return NULL;
+    
+    message->headers = malloc(sizeof(rfc822_header_t*) * RFC822_INITIAL_HEADERS);
+    if (!message->headers) {
+        free(message);
+        return NULL;
+    }
+    
+    message->header_count = 0;
+    message->header_capacity = RFC822_INITIAL_HEADERS;
+    message->body = NULL;
+    
+    return message;
+}
+
+/* Free an RFC822 message */
+void rfc822_message_free(rfc822_message_t* message) {
+    size_t i;
+    
+    if (!message) return;
+    
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i]) {
+            free(message->headers[i]->name);
+            free(message->headers[i]->value);
+            free(message->headers[i]);
+        }
+    }
+    
+    free(message->headers);
+    free(message->body);
+    free(message);
+}
+
+/* Add a header to an RFC822 message */
+ftn_error_t rfc822_message_add_header(rfc822_message_t* message, const char* name, const char* value) {
+    rfc822_header_t* header;
+    
+    if (!message || !name || !value) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Grow headers array if needed */
+    if (message->header_count >= message->header_capacity) {
+        size_t new_capacity = message->header_capacity + RFC822_HEADER_GROWTH;
+        rfc822_header_t** new_headers = realloc(message->headers, 
+                                                sizeof(rfc822_header_t*) * new_capacity);
+        if (!new_headers) return FTN_ERROR_NOMEM;
+        
+        message->headers = new_headers;
+        message->header_capacity = new_capacity;
+    }
+    
+    /* Create new header */
+    header = malloc(sizeof(rfc822_header_t));
+    if (!header) return FTN_ERROR_NOMEM;
+    
+    header->name = malloc(strlen(name) + 1);
+    header->value = malloc(strlen(value) + 1);
+    
+    if (!header->name || !header->value) {
+        free(header->name);
+        free(header->value);
+        free(header);
+        return FTN_ERROR_NOMEM;
+    }
+    
+    strcpy(header->name, name);
+    strcpy(header->value, value);
+    
+    message->headers[message->header_count++] = header;
+    
+    return FTN_OK;
+}
+
+/* Get header value by name */
+const char* rfc822_message_get_header(const rfc822_message_t* message, const char* name) {
+    size_t i;
+    
+    if (!message || !name) return NULL;
+    
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i] && strcasecmp(message->headers[i]->name, name) == 0) {
+            return message->headers[i]->value;
+        }
+    }
+    
+    return NULL;
+}
+
+/* Set header value (replace if exists, add if not) */
+ftn_error_t rfc822_message_set_header(rfc822_message_t* message, const char* name, const char* value) {
+    size_t i;
+    char* new_value;
+    
+    if (!message || !name || !value) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Look for existing header */
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i] && strcasecmp(message->headers[i]->name, name) == 0) {
+            new_value = malloc(strlen(value) + 1);
+            if (!new_value) return FTN_ERROR_NOMEM;
+            
+            strcpy(new_value, value);
+            free(message->headers[i]->value);
+            message->headers[i]->value = new_value;
+            return FTN_OK;
+        }
+    }
+    
+    /* Header doesn't exist, add it */
+    return rfc822_message_add_header(message, name, value);
+}
+
+/* Remove header by name */
+ftn_error_t rfc822_message_remove_header(rfc822_message_t* message, const char* name) {
+    size_t i, j;
+    
+    if (!message || !name) return FTN_ERROR_INVALID_PARAMETER;
+    
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i] && strcasecmp(message->headers[i]->name, name) == 0) {
+            free(message->headers[i]->name);
+            free(message->headers[i]->value);
+            free(message->headers[i]);
+            
+            /* Shift remaining headers down */
+            for (j = i; j < message->header_count - 1; j++) {
+                message->headers[j] = message->headers[j + 1];
+            }
+            message->header_count--;
+            return FTN_OK;
+        }
+    }
+    
+    return FTN_ERROR_NOTFOUND;
+}
+
+/* Set message body */
+ftn_error_t rfc822_message_set_body(rfc822_message_t* message, const char* body) {
+    char* new_body;
+    
+    if (!message) return FTN_ERROR_INVALID_PARAMETER;
+    
+    if (body) {
+        new_body = malloc(strlen(body) + 1);
+        if (!new_body) return FTN_ERROR_NOMEM;
+        strcpy(new_body, body);
+    } else {
+        new_body = NULL;
+    }
+    
+    free(message->body);
+    message->body = new_body;
+    
+    return FTN_OK;
+}
+
+/* Convert RFC822 text to CRLF line endings */
+static char* convert_to_crlf(const char* text) {
+    size_t len, new_len, i, j;
+    char* result;
+    
+    if (!text) return NULL;
+    
+    len = strlen(text);
+    new_len = len;
+    
+    /* Count LF characters that aren't preceded by CR */
+    for (i = 0; i < len; i++) {
+        if (text[i] == '\n' && (i == 0 || text[i-1] != '\r')) {
+            new_len++;
+        }
+    }
+    
+    result = malloc(new_len + 1);
+    if (!result) return NULL;
+    
+    j = 0;
+    for (i = 0; i < len; i++) {
+        if (text[i] == '\n' && (i == 0 || text[i-1] != '\r')) {
+            result[j++] = '\r';
+        }
+        result[j++] = text[i];
+    }
+    result[j] = '\0';
+    
+    return result;
+}
+
+/* Convert CRLF line endings to LF */
+static char* convert_from_crlf(const char* text) {
+    size_t len, i, j;
+    char* result;
+    
+    if (!text) return NULL;
+    
+    len = strlen(text);
+    result = malloc(len + 1);
+    if (!result) return NULL;
+    
+    j = 0;
+    for (i = 0; i < len; i++) {
+        if (text[i] == '\r' && i + 1 < len && text[i + 1] == '\n') {
+            /* Skip CR, let LF through */
+            continue;
+        }
+        result[j++] = text[i];
+    }
+    result[j] = '\0';
+    
+    return result;
+}
+
+/* Generate RFC822 text from message */
+char* rfc822_message_to_text(const rfc822_message_t* message) {
+    size_t total_size = 0;
+    size_t i;
+    char* result;
+    char* pos;
+    char* body_crlf;
+    
+    if (!message) return NULL;
+    
+    /* Calculate required size */
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i]) {
+            total_size += strlen(message->headers[i]->name) + 2; /* name + ": " */
+            total_size += strlen(message->headers[i]->value) + 2; /* value + CRLF */
+        }
+    }
+    
+    total_size += 2; /* Empty line between headers and body */
+    
+    if (message->body) {
+        body_crlf = convert_to_crlf(message->body);
+        if (body_crlf) {
+            total_size += strlen(body_crlf);
+        }
+    } else {
+        body_crlf = NULL;
+    }
+    
+    result = malloc(total_size + 1);
+    if (!result) {
+        free(body_crlf);
+        return NULL;
+    }
+    
+    pos = result;
+    
+    /* Write headers */
+    for (i = 0; i < message->header_count; i++) {
+        if (message->headers[i]) {
+            strcpy(pos, message->headers[i]->name);
+            pos += strlen(message->headers[i]->name);
+            strcpy(pos, ": ");
+            pos += 2;
+            strcpy(pos, message->headers[i]->value);
+            pos += strlen(message->headers[i]->value);
+            strcpy(pos, "\r\n");
+            pos += 2;
+        }
+    }
+    
+    /* Empty line */
+    strcpy(pos, "\r\n");
+    pos += 2;
+    
+    /* Write body */
+    if (body_crlf) {
+        strcpy(pos, body_crlf);
+        free(body_crlf);
+    }
+    
+    return result;
+}
+
+/* Parse RFC822 message from text */
+ftn_error_t rfc822_message_parse(const char* text, rfc822_message_t** message) {
+    rfc822_message_t* msg;
+    const char* pos;
+    const char* line_start;
+    const char* body_start = NULL;
+    char* line;
+    char* colon_pos;
+    char* name;
+    char* value;
+    size_t line_len;
+    ftn_error_t error;
+    
+    if (!text || !message) return FTN_ERROR_INVALID_PARAMETER;
+    
+    msg = rfc822_message_new();
+    if (!msg) return FTN_ERROR_NOMEM;
+    
+    pos = text;
+    
+    /* Parse headers */
+    while (*pos) {
+        line_start = pos;
+        
+        /* Find end of line */
+        while (*pos && *pos != '\r' && *pos != '\n') pos++;
+        
+        line_len = pos - line_start;
+        
+        /* Skip CRLF */
+        if (*pos == '\r') pos++;
+        if (*pos == '\n') pos++;
+        
+        /* Empty line marks end of headers */
+        if (line_len == 0) {
+            body_start = pos;
+            break;
+        }
+        
+        /* Copy line */
+        line = malloc(line_len + 1);
+        if (!line) {
+            rfc822_message_free(msg);
+            return FTN_ERROR_NOMEM;
+        }
+        memcpy(line, line_start, line_len);
+        line[line_len] = '\0';
+        
+        /* Find colon separator */
+        colon_pos = strchr(line, ':');
+        if (!colon_pos) {
+            free(line);
+            continue; /* Skip malformed header */
+        }
+        
+        /* Extract name and value */
+        *colon_pos = '\0';
+        name = line;
+        value = colon_pos + 1;
+        
+        /* Trim whitespace from value */
+        while (*value == ' ' || *value == '\t') value++;
+        
+        /* Add header */
+        error = rfc822_message_add_header(msg, name, value);
+        free(line);
+        
+        if (error != FTN_OK) {
+            rfc822_message_free(msg);
+            return error;
+        }
+    }
+    
+    /* Set body if present */
+    if (body_start && *body_start) {
+        char* body = convert_from_crlf(body_start);
+        if (body) {
+            error = rfc822_message_set_body(msg, body);
+            free(body);
+            if (error != FTN_OK) {
+                rfc822_message_free(msg);
+                return error;
+            }
+        }
+    }
+    
+    *message = msg;
+    return FTN_OK;
+}
+
+/* Format FTN address for RFC822 */
+char* ftn_address_to_rfc822(const ftn_address_t* addr, const char* name, const char* domain) {
+    char addr_str[64];
+    char* result;
+    size_t total_len;
+    
+    if (!addr || !domain) return NULL;
+    
+    ftn_address_to_string(addr, addr_str, sizeof(addr_str));
+    
+    if (name && *name) {
+        total_len = strlen(name) + strlen(addr_str) + strlen(domain) + 16; /* Extra space for formatting */
+        result = malloc(total_len);
+        if (result) {
+            snprintf(result, total_len, "\"%s\" <%s@%s>", name, addr_str, domain);
+        }
+    } else {
+        total_len = strlen(addr_str) + strlen(domain) + 8; /* Extra space for "@" and null */
+        result = malloc(total_len);
+        if (result) {
+            snprintf(result, total_len, "%s@%s", addr_str, domain);
+        }
+    }
+    
+    return result;
+}
+
+/* Parse RFC822 address to extract FTN address */
+ftn_error_t rfc822_address_to_ftn(const char* rfc_addr, const char* domain, ftn_address_t* addr, char** name) {
+    const char* at_pos;
+    const char* bracket_start;
+    const char* bracket_end;
+    char* addr_part;
+    char* domain_part;
+    char* name_part = NULL;
+    int result;
+    size_t name_len;
+    size_t addr_len;
+    
+    if (!rfc_addr || !domain || !addr) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Look for angle brackets <address> */
+    bracket_start = strchr(rfc_addr, '<');
+    bracket_end = strchr(rfc_addr, '>');
+    
+    if (bracket_start && bracket_end && bracket_end > bracket_start) {
+        /* Extract name part if present */
+        if (bracket_start > rfc_addr) {
+            name_len = bracket_start - rfc_addr;
+            while (name_len > 0 && isspace(rfc_addr[name_len - 1])) name_len--;
+            
+            if (name_len > 0) {
+                name_part = malloc(name_len + 1);
+                if (name_part) {
+                    memcpy(name_part, rfc_addr, name_len);
+                    name_part[name_len] = '\0';
+                    
+                    /* Remove quotes if present */
+                    if (name_part[0] == '"' && name_part[name_len - 1] == '"') {
+                        memmove(name_part, name_part + 1, name_len - 2);
+                        name_part[name_len - 2] = '\0';
+                    }
+                }
+            }
+        }
+        
+        /* Extract address from brackets */
+        addr_len = bracket_end - bracket_start - 1;
+        addr_part = malloc(addr_len + 1);
+        if (!addr_part) {
+            free(name_part);
+            return FTN_ERROR_NOMEM;
+        }
+        memcpy(addr_part, bracket_start + 1, addr_len);
+        addr_part[addr_len] = '\0';
+    } else {
+        /* No brackets, whole string is address */
+        addr_part = malloc(strlen(rfc_addr) + 1);
+        if (!addr_part) return FTN_ERROR_NOMEM;
+        strcpy(addr_part, rfc_addr);
+    }
+    
+    /* Find @ symbol */
+    at_pos = strchr(addr_part, '@');
+    if (!at_pos) {
+        free(addr_part);
+        free(name_part);
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    /* Split at @ */
+    *((char*)at_pos) = '\0';
+    domain_part = (char*)(at_pos + 1);
+    
+    /* Validate domain matches expected */
+    if (strcasecmp(domain_part, domain) != 0) {
+        free(addr_part);
+        free(name_part);
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    /* Parse FTN address from local part */
+    result = ftn_address_parse(addr_part, addr);
+    
+    free(addr_part);
+    
+    if (result == 0) {
+        free(name_part);
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    if (name) {
+        *name = name_part;
+    } else {
+        free(name_part);
+    }
+    
+    return FTN_OK;
+}
+
+/* Convert FTN timestamp to RFC822 date format */
+char* ftn_timestamp_to_rfc822(time_t timestamp) {
+    struct tm* tm_info;
+    char* result;
+    static const char* weekdays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    static const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    
+    tm_info = gmtime(&timestamp);
+    if (!tm_info) return NULL;
+    
+    result = malloc(64);
+    if (!result) return NULL;
+    
+    snprintf(result, 64, "%s, %02d %s %04d %02d:%02d:%02d GMT",
+             weekdays[tm_info->tm_wday],
+             tm_info->tm_mday,
+             months[tm_info->tm_mon],
+             tm_info->tm_year + 1900,
+             tm_info->tm_hour,
+             tm_info->tm_min,
+             tm_info->tm_sec);
+    
+    return result;
+}
+
+/* Parse RFC822 date to timestamp */
+ftn_error_t rfc822_date_to_timestamp(const char* date_str, time_t* timestamp) {
+    /* This is a simplified parser - RFC822 date parsing is quite complex */
+    struct tm tm_info;
+    int day, year, hour, min, sec;
+    char month_str[4];
+    static const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    int month = -1;
+    int i;
+    
+    if (!date_str || !timestamp) return FTN_ERROR_INVALID_PARAMETER;
+    
+    memset(&tm_info, 0, sizeof(tm_info));
+    
+    /* Simple format: "DD Mon YYYY HH:MM:SS" */
+    if (sscanf(date_str, "%d %3s %d %d:%d:%d", &day, month_str, &year, &hour, &min, &sec) == 6) {
+        for (i = 0; i < 12; i++) {
+            if (strncasecmp(month_str, months[i], 3) == 0) {
+                month = i;
+                break;
+            }
+        }
+        
+        if (month >= 0) {
+            tm_info.tm_mday = day;
+            tm_info.tm_mon = month;
+            tm_info.tm_year = year - 1900;
+            tm_info.tm_hour = hour;
+            tm_info.tm_min = min;
+            tm_info.tm_sec = sec;
+            
+            *timestamp = mktime(&tm_info);
+            return FTN_OK;
+        }
+    }
+    
+    return FTN_ERROR_INVALID_FORMAT;
+}
+
+/* Encode text for safe transport (basic implementation) */
+char* rfc822_encode_text(const char* text) {
+    /* For now, just copy the text - could implement quoted-printable here */
+    char* result;
+    
+    if (!text) return NULL;
+    
+    result = malloc(strlen(text) + 1);
+    if (result) {
+        strcpy(result, text);
+    }
+    return result;
+}
+
+/* Decode text (basic implementation) */
+char* rfc822_decode_text(const char* text) {
+    /* For now, just copy the text - could implement quoted-printable decoding here */
+    char* result;
+    
+    if (!text) return NULL;
+    
+    result = malloc(strlen(text) + 1);
+    if (result) {
+        strcpy(result, text);
+    }
+    return result;
+}
+
+/* Convert FTN message to RFC822 */
+ftn_error_t ftn_to_rfc822(const ftn_message_t* ftn_msg, const char* domain, rfc822_message_t** rfc_msg) {
+    rfc822_message_t* msg;
+    char* from_addr;
+    char* to_addr;
+    char* date_str;
+    char buffer[256];
+    ftn_error_t error;
+    size_t i;
+    
+    if (!ftn_msg || !domain || !rfc_msg) return FTN_ERROR_INVALID_PARAMETER;
+    
+    msg = rfc822_message_new();
+    if (!msg) return FTN_ERROR_NOMEM;
+    
+    /* Set From header */
+    from_addr = ftn_address_to_rfc822(&ftn_msg->orig_addr, ftn_msg->from_user, domain);
+    if (from_addr) {
+        error = rfc822_message_add_header(msg, "From", from_addr);
+        free(from_addr);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set To header */
+    to_addr = ftn_address_to_rfc822(&ftn_msg->dest_addr, ftn_msg->to_user, domain);
+    if (to_addr) {
+        error = rfc822_message_add_header(msg, "To", to_addr);
+        free(to_addr);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Subject header */
+    if (ftn_msg->subject) {
+        error = rfc822_message_add_header(msg, "Subject", ftn_msg->subject);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Date header */
+    date_str = ftn_timestamp_to_rfc822(ftn_msg->timestamp);
+    if (date_str) {
+        error = rfc822_message_add_header(msg, "Date", date_str);
+        free(date_str);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Message-ID header if MSGID is available */
+    if (ftn_msg->msgid) {
+        error = rfc822_message_add_header(msg, "Message-ID", ftn_msg->msgid);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set In-Reply-To header if REPLY is available */
+    if (ftn_msg->reply) {
+        error = rfc822_message_add_header(msg, "In-Reply-To", ftn_msg->reply);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add FTN-specific headers */
+    snprintf(buffer, sizeof(buffer), "%u:%u/%u.%u", ftn_msg->orig_addr.zone, ftn_msg->orig_addr.net,
+             ftn_msg->orig_addr.node, ftn_msg->orig_addr.point);
+    error = rfc822_message_add_header(msg, "X-FTN-From", buffer);
+    if (error != FTN_OK) goto error_cleanup;
+    
+    snprintf(buffer, sizeof(buffer), "%u:%u/%u.%u", ftn_msg->dest_addr.zone, ftn_msg->dest_addr.net,
+             ftn_msg->dest_addr.node, ftn_msg->dest_addr.point);
+    error = rfc822_message_add_header(msg, "X-FTN-To", buffer);
+    if (error != FTN_OK) goto error_cleanup;
+    
+    if (ftn_msg->attributes) {
+        snprintf(buffer, sizeof(buffer), "0x%04X", ftn_msg->attributes);
+        error = rfc822_message_add_header(msg, "X-FTN-Attributes", buffer);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add control paragraphs as X-FTN headers */
+    for (i = 0; i < ftn_msg->control_count; i++) {
+        if (ftn_msg->control_lines[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Control", ftn_msg->control_lines[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Add SEEN-BY lines */
+    for (i = 0; i < ftn_msg->seenby_count; i++) {
+        if (ftn_msg->seenby[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Seen-By", ftn_msg->seenby[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Add PATH lines */
+    for (i = 0; i < ftn_msg->path_count; i++) {
+        if (ftn_msg->path[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Path", ftn_msg->path[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Set body */
+    if (ftn_msg->text) {
+        error = rfc822_message_set_body(msg, ftn_msg->text);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    *rfc_msg = msg;
+    return FTN_OK;
+    
+error_cleanup:
+    rfc822_message_free(msg);
+    return error;
+}
+
+/* Convert RFC822 message to FTN */
+ftn_error_t rfc822_to_ftn(const rfc822_message_t* rfc_msg, const char* domain, ftn_message_t** ftn_msg) {
+    ftn_message_t* msg;
+    const char* header_value;
+    char* name = NULL;
+    ftn_error_t error;
+    unsigned int attributes;
+    
+    if (!rfc_msg || !domain || !ftn_msg) return FTN_ERROR_INVALID_PARAMETER;
+    
+    msg = ftn_message_new(FTN_MSG_NETMAIL);
+    if (!msg) return FTN_ERROR_NOMEM;
+    
+    /* Extract From address */
+    header_value = rfc822_message_get_header(rfc_msg, "From");
+    if (header_value) {
+        error = rfc822_address_to_ftn(header_value, domain, &msg->orig_addr, &name);
+        if (error == FTN_OK && name) {
+            msg->from_user = name;
+            name = NULL;
+        }
+    }
+    
+    /* Extract To address */
+    header_value = rfc822_message_get_header(rfc_msg, "To");
+    if (header_value) {
+        error = rfc822_address_to_ftn(header_value, domain, &msg->dest_addr, &name);
+        if (error == FTN_OK && name) {
+            msg->to_user = name;
+            name = NULL;
+        }
+    }
+    
+    /* Extract Subject */
+    header_value = rfc822_message_get_header(rfc_msg, "Subject");
+    if (header_value) {
+        msg->subject = malloc(strlen(header_value) + 1);
+        if (msg->subject) {
+            strcpy(msg->subject, header_value);
+        }
+    }
+    
+    /* Extract Date */
+    header_value = rfc822_message_get_header(rfc_msg, "Date");
+    if (header_value) {
+        rfc822_date_to_timestamp(header_value, &msg->timestamp);
+    }
+    
+    /* Extract Message-ID */
+    header_value = rfc822_message_get_header(rfc_msg, "Message-ID");
+    if (header_value) {
+        msg->msgid = malloc(strlen(header_value) + 1);
+        if (msg->msgid) {
+            strcpy(msg->msgid, header_value);
+        }
+    }
+    
+    /* Extract In-Reply-To */
+    header_value = rfc822_message_get_header(rfc_msg, "In-Reply-To");
+    if (header_value) {
+        msg->reply = malloc(strlen(header_value) + 1);
+        if (msg->reply) {
+            strcpy(msg->reply, header_value);
+        }
+    }
+    
+    /* Extract FTN attributes */
+    header_value = rfc822_message_get_header(rfc_msg, "X-FTN-Attributes");
+    if (header_value && sscanf(header_value, "0x%X", &attributes) == 1) {
+        msg->attributes = attributes;
+    }
+    
+    /* Set body */
+    if (rfc_msg->body) {
+        msg->text = malloc(strlen(rfc_msg->body) + 1);
+        if (msg->text) {
+            strcpy(msg->text, rfc_msg->body);
+        }
+    }
+    
+    *ftn_msg = msg;
+    return FTN_OK;
+}

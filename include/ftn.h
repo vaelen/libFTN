@@ -61,6 +61,7 @@ typedef struct {
 /* Include nodelist functionality */
 #include "nodelist.h"
 #include "packet.h"
+#include "rfc822.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);

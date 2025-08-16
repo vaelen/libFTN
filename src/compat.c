@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /* Only compile these functions if we're using C89 or earlier */
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L
@@ -133,5 +134,41 @@ char* strtok_r(char* str, const char* delim, char** saveptr) {
     
     return start;
 }
+
+/* String comparison functions for non-POSIX environments */
+#if !defined(_WIN32)
+
+int strcasecmp(const char *s1, const char *s2) {
+    if (!s1 || !s2) {
+        return (s1 == s2) ? 0 : (s1 ? 1 : -1);
+    }
+    
+    while (*s1 && *s2) {
+        char c1 = tolower((unsigned char)*s1);
+        char c2 = tolower((unsigned char)*s2);
+        if (c1 != c2) return c1 - c2;
+        s1++;
+        s2++;
+    }
+    return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+}
+
+int strncasecmp(const char *s1, const char *s2, size_t n) {
+    size_t i;
+    
+    if (!s1 || !s2) {
+        return (s1 == s2) ? 0 : (s1 ? 1 : -1);
+    }
+    
+    for (i = 0; i < n && *s1 && *s2; i++, s1++, s2++) {
+        char c1 = tolower((unsigned char)*s1);
+        char c2 = tolower((unsigned char)*s2);
+        if (c1 != c2) return c1 - c2;
+    }
+    if (i == n) return 0;
+    return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+}
+
+#endif /* Non-Windows string comparison functions */
 
 #endif /* POSIX compatibility functions */

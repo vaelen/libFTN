@@ -143,12 +143,77 @@ static void test_strtok_r(void) {
     printf("strtok_r: PASSED\n");
 }
 
+static void test_strcasecmp(void) {
+    printf("Testing strcasecmp...\n");
+    
+    /* Test equal strings */
+    assert(strcasecmp("hello", "hello") == 0);
+    
+    /* Test case-insensitive equal strings */
+    assert(strcasecmp("Hello", "hello") == 0);
+    assert(strcasecmp("HELLO", "hello") == 0);
+    assert(strcasecmp("hello", "HELLO") == 0);
+    
+    /* Test different strings */
+    assert(strcasecmp("hello", "world") != 0);
+    
+    /* Test ordering */
+    assert(strcasecmp("apple", "BANANA") < 0);
+    assert(strcasecmp("ZEBRA", "apple") > 0);
+    
+    /* Test null handling */
+    assert(strcasecmp(NULL, NULL) == 0);
+    assert(strcasecmp("hello", NULL) > 0);
+    assert(strcasecmp(NULL, "hello") < 0);
+    
+    /* Test mixed case */
+    assert(strcasecmp("MiXeD", "mixed") == 0);
+    assert(strcasecmp("Test123", "TEST123") == 0);
+    
+    printf("strcasecmp: PASSED\n");
+}
+
+static void test_strncasecmp(void) {
+    printf("Testing strncasecmp...\n");
+    
+    /* Test equal strings within limit */
+    assert(strncasecmp("hello", "hello", 5) == 0);
+    
+    /* Test case-insensitive equal strings */
+    assert(strncasecmp("Hello", "hello", 5) == 0);
+    assert(strncasecmp("HELLO", "hello", 5) == 0);
+    
+    /* Test partial comparison */
+    assert(strncasecmp("hello", "help", 3) == 0);
+    assert(strncasecmp("hello", "help", 4) != 0);
+    
+    /* Test with zero length */
+    assert(strncasecmp("hello", "world", 0) == 0);
+    
+    /* Test ordering */
+    assert(strncasecmp("apple", "BANANA", 1) < 0);
+    assert(strncasecmp("ZEBRA", "apple", 1) > 0);
+    
+    /* Test null handling */
+    assert(strncasecmp(NULL, NULL, 5) == 0);
+    assert(strncasecmp("hello", NULL, 5) > 0);
+    assert(strncasecmp(NULL, "hello", 5) < 0);
+    
+    /* Test length limits */
+    assert(strncasecmp("testing", "TEST", 4) == 0);
+    assert(strncasecmp("testing", "TEST", 5) != 0);
+    
+    printf("strncasecmp: PASSED\n");
+}
+
 int main(void) {
     printf("Running compatibility tests...\n\n");
     
     test_snprintf();
     test_strdup();
     test_strtok_r();
+    test_strcasecmp();
+    test_strncasecmp();
     
     printf("\nAll compatibility tests passed!\n");
     return 0;
