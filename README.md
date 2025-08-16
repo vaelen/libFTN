@@ -39,22 +39,6 @@ Example:
   ./bin/pkt2mail --domain mynet.org /home/user/Mail/ftn *.pkt
 ```
 
-### msg2pkt  
-Converts RFC822 messages to FidoNet packet format. Addresses are automatically parsed from message headers.
-
-```bash
-./bin/msg2pkt [options] <output_dir> <rfc822_files...>
-
-Options:
-  -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)
-  -s <dir>     Move processed files to specified 'Sent' directory
-  -h           Show help message
-
-Example:
-  ./bin/msg2pkt outbound message1.txt message2.txt
-  ./bin/msg2pkt -s sent -d mynet.org outbound *.txt
-```
-
 ### pkt2news
 Converts FidoNet Echomail packets to USENET articles (RFC1036 format). Only Echomail messages are converted; Netmail messages are skipped.
 
@@ -74,8 +58,24 @@ Creates directory structure: `USENET_ROOT/NETWORK/AREA/ARTICLE_NUM`
 Maintains active file with newsgroup information at `USENET_ROOT/active`  
 Area names are converted to lowercase for newsgroup names (e.g., `FSX_GEN` → `fidonet.fsx_gen`)
 
+### msg2pkt  
+Converts RFC822 messages to FidoNet packet format. Addresses are automatically parsed from message headers.
+
+```bash
+./bin/msg2pkt [options] <output_dir> <rfc822_files...>
+
+Options:
+  -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)
+  -s <dir>     Move processed files to specified 'Sent' directory
+  -h           Show help message
+
+Example:
+  ./bin/msg2pkt outbound message1.txt message2.txt
+  ./bin/msg2pkt -s sent -d mynet.org outbound *.txt
+```
+
 ### Other Utilities
-- **pktcreate**: Create new FidoNet packets with messages (supports `-o <dir>` for output directory)
+- **pktcreate**: Create new FidoNet packets with messages
 - **pktview**: Display packet contents in human-readable format
 - **pktlist**: List messages in packet files
 - **pktbundle**: Bundle multiple packets together
