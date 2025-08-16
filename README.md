@@ -13,7 +13,8 @@ libFTN is a C library for working with FidoNet (FTN) mail and related protocols.
 - Functions for parsing FTN nodelists.
 - Functions for parsing and creating packed mail objects.
 - RFC822 message format conversion library with bidirectional FTN ↔ RFC822 conversion.
-- Command-line utilities for converting between FidoNet packets and standard mailbox formats.
+- RFC1036 USENET article format support for Echomail conversion.
+- Command-line utilities for converting between FidoNet packets and standard mailbox/newsgroup formats.
 
 ## Build Instructions
 
@@ -23,41 +24,59 @@ On UNIX or any UNIX-like operating system (such as Linux or MacOS) you should on
 
 The following utilities are built alongside the library:
 
-### pkt2maildir
+### pkt2mail
 Converts FidoNet packet files (.pkt) to maildir format for use with standard email clients.
 
 ```bash
-./bin/pkt2maildir [options] <maildir_path> <packet_files...>
+./bin/pkt2mail [options] <maildir_path> <packet_files...>
 
 Options:
   --domain <name>  Domain name for RFC822 addresses (default: fidonet.org)
   --help           Show help message
 
 Example:
-  ./bin/pkt2maildir /home/user/Mail/ftn netmail.pkt echomail.pkt
-  ./bin/pkt2maildir --domain mynet.org /home/user/Mail/ftn *.pkt
+  ./bin/pkt2mail /home/user/Mail/ftn netmail.pkt echomail.pkt
+  ./bin/pkt2mail --domain mynet.org /home/user/Mail/ftn *.pkt
 ```
 
-### maildir2pkt  
-Converts RFC822 messages to FidoNet packet format.
+### msg2pkt  
+Converts RFC822 messages to FidoNet packet format. Addresses are automatically parsed from message headers.
 
 ```bash
-./bin/maildir2pkt [options] <rfc822_files...>
+./bin/msg2pkt [options] <rfc822_files...>
 
 Options:
   -d <domain>  Domain name for RFC822 addresses (default: fidonet.org)
   -s <dir>     Move processed files to specified 'Sent' directory
-  -o <file>    Output packet filename (default: auto-generated)
-  -f <addr>    From address (zone:net/node.point format)
-  -t <addr>    To address (zone:net/node.point format)
+  -o <dir>     Output directory for packet files (default: current directory)
   -h           Show help message
 
 Example:
-  ./bin/maildir2pkt -f 1:2/3 -t 1:4/5 -o outbound.pkt message.txt
+  ./bin/msg2pkt -o outbound message1.txt message2.txt
+  ./bin/msg2pkt -s sent -d mynet.org *.txt
 ```
 
+### pkt2news
+Converts FidoNet Echomail packets to USENET articles (RFC1036 format). Only Echomail messages are converted; Netmail messages are skipped.
+
+```bash
+./bin/pkt2news [options] <usenet_root> <packet_files...>
+
+Options:
+  -n <network>  Network name for newsgroups (default: fidonet)
+  -h            Show help message
+
+Example:
+  ./bin/pkt2news /var/spool/news echomail1.pkt echomail2.pkt
+  ./bin/pkt2news -n fsxnet /home/news/fsxnet *.pkt
+```
+
+Creates directory structure: `USENET_ROOT/NETWORK/AREA/ARTICLE_NUM`  
+Maintains active file with newsgroup information at `USENET_ROOT/active`  
+Area names are converted to lowercase for newsgroup names (e.g., `FSX_GEN` → `fidonet.fsx_gen`)
+
 ### Other Utilities
-- **pktcreate**: Create new FidoNet packets with messages
+- **pktcreate**: Create new FidoNet packets with messages (supports `-o <dir>` for output directory)
 - **pktview**: Display packet contents in human-readable format
 - **pktlist**: List messages in packet files
 - **pktbundle**: Bundle multiple packets together

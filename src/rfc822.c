@@ -383,44 +383,186 @@ ftn_error_t rfc822_message_parse(const char* text, rfc822_message_t** message) {
     return FTN_OK;
 }
 
-/* Format FTN address for RFC822 */
-char* ftn_address_to_rfc822(const ftn_address_t* addr, const char* name, const char* domain) {
-    char addr_str[64];
+/* Convert FTN address to Internet FQDN format (P.F.N.Z.DOMAIN) */
+static char* ftn_address_to_fqdn(const ftn_address_t* addr, const char* domain) {
     char* result;
+    size_t domain_len;
     size_t total_len;
     
     if (!addr || !domain) return NULL;
     
-    ftn_address_to_string(addr, addr_str, sizeof(addr_str));
+    domain_len = strlen(domain);
     
-    if (name && *name) {
-        total_len = strlen(name) + strlen(addr_str) + strlen(domain) + 16; /* Extra space for formatting */
+    if (addr->point > 0) {
+        /* Include point: P.F.N.Z.DOMAIN */
+        total_len = 64 + domain_len; /* Conservative estimate */
         result = malloc(total_len);
         if (result) {
-            snprintf(result, total_len, "\"%s\" <%s@%s>", name, addr_str, domain);
+            snprintf(result, total_len, "%u.%u.%u.%u.%s", 
+                     addr->point, addr->node, addr->net, addr->zone, domain);
         }
     } else {
-        total_len = strlen(addr_str) + strlen(domain) + 8; /* Extra space for "@" and null */
+        /* No point: F.N.Z.DOMAIN */
+        total_len = 64 + domain_len; /* Conservative estimate */
         result = malloc(total_len);
         if (result) {
-            snprintf(result, total_len, "%s@%s", addr_str, domain);
+            snprintf(result, total_len, "%u.%u.%u.%s", 
+                     addr->node, addr->net, addr->zone, domain);
         }
     }
     
     return result;
 }
 
+/* Format FTN address for RFC822 */
+char* ftn_address_to_rfc822(const ftn_address_t* addr, const char* name, const char* domain) {
+    char* fqdn;
+    char* result;
+    char* username;
+    size_t total_len;
+    size_t username_len;
+    size_t i;
+    
+    if (!addr || !domain) return NULL;
+    
+    fqdn = ftn_address_to_fqdn(addr, domain);
+    if (!fqdn) return NULL;
+    
+    /* Create username from name (convert to lowercase, replace spaces/special chars) */
+    if (name && *name) {
+        username_len = strlen(name);
+        username = malloc(username_len + 1);
+        if (!username) {
+            free(fqdn);
+            return NULL;
+        }
+        
+        /* Convert name to valid email username */
+        for (i = 0; i < username_len; i++) {
+            char c = name[i];
+            if (c >= 'A' && c <= 'Z') {
+                username[i] = c + 32; /* Convert to lowercase */
+            } else if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') {
+                username[i] = c; /* Keep valid characters */
+            } else {
+                username[i] = '_'; /* Replace invalid characters with underscore */
+            }
+        }
+        username[username_len] = '\0';
+        
+        total_len = strlen(name) + strlen(username) + strlen(fqdn) + 16; /* Extra space for formatting */
+        result = malloc(total_len);
+        if (result) {
+            snprintf(result, total_len, "\"%s\" <%s@%s>", name, username, fqdn);
+        }
+        free(username);
+    } else {
+        /* No name provided, use generic username */
+        total_len = strlen(fqdn) + 16; /* Extra space for "user@" */
+        result = malloc(total_len);
+        if (result) {
+            snprintf(result, total_len, "user@%s", fqdn);
+        }
+    }
+    
+    free(fqdn);
+    return result;
+}
+
+/* Parse email address or FQDN back to FTN address (user@P.F.N.Z.DOMAIN or P.F.N.Z.DOMAIN) */
+static ftn_error_t fqdn_to_ftn_address(const char* addr_str, const char* domain, ftn_address_t* addr) {
+    char* fqdn_copy;
+    char* dot_pos;
+    char* domain_pos;
+    char* at_pos;
+    char* fqdn_start;
+    char* parts[4]; /* point, node, net, zone */
+    int part_count = 0;
+    
+    if (!addr_str || !domain || !addr) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Check if this is an email address (user@fqdn) or just FQDN */
+    at_pos = strchr(addr_str, '@');
+    if (at_pos) {
+        /* Email format - extract FQDN part after @ */
+        fqdn_start = at_pos + 1;
+    } else {
+        /* Just FQDN */
+        fqdn_start = (char*)addr_str;
+    }
+    
+    /* Check if FQDN ends with expected domain */
+    domain_pos = strstr(fqdn_start, domain);
+    if (!domain_pos || domain_pos == fqdn_start) {
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    /* Check that domain is at the end and preceded by a dot */
+    if (strcmp(domain_pos, domain) != 0 || *(domain_pos - 1) != '.') {
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    /* Copy FQDN without domain part */
+    fqdn_copy = malloc(domain_pos - fqdn_start);
+    if (!fqdn_copy) return FTN_ERROR_NOMEM;
+    memcpy(fqdn_copy, fqdn_start, domain_pos - fqdn_start - 1); /* -1 to exclude the dot */
+    fqdn_copy[domain_pos - fqdn_start - 1] = '\0';
+    
+    /* Split by dots */
+    parts[part_count] = fqdn_copy;
+    for (dot_pos = fqdn_copy; *dot_pos; dot_pos++) {
+        if (*dot_pos == '.') {
+            *dot_pos = '\0';
+            if (part_count < 3) {
+                parts[++part_count] = dot_pos + 1;
+            }
+        }
+    }
+    part_count++;
+    
+    /* Initialize address */
+    memset(addr, 0, sizeof(ftn_address_t));
+    
+    if (part_count == 3) {
+        /* F.N.Z format (no point) */
+        addr->node = atoi(parts[0]);
+        addr->net = atoi(parts[1]);
+        addr->zone = atoi(parts[2]);
+        addr->point = 0;
+    } else if (part_count == 4) {
+        /* P.F.N.Z format (with point) */
+        addr->point = atoi(parts[0]);
+        addr->node = atoi(parts[1]);
+        addr->net = atoi(parts[2]);
+        addr->zone = atoi(parts[3]);
+    } else {
+        free(fqdn_copy);
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    /* Validate parsed values */
+    if (addr->zone == 0 || addr->net == 0 || addr->node == 0) {
+        free(fqdn_copy);
+        return FTN_ERROR_INVALID_FORMAT;
+    }
+    
+    free(fqdn_copy);
+    return FTN_OK;
+}
+
 /* Parse RFC822 address to extract FTN address */
 ftn_error_t rfc822_address_to_ftn(const char* rfc_addr, const char* domain, ftn_address_t* addr, char** name) {
-    const char* at_pos;
     const char* bracket_start;
     const char* bracket_end;
+    const char* at_pos;
+    const char* space_pos;
     char* addr_part;
-    char* domain_part;
     char* name_part = NULL;
-    int result;
+    char* user_part = NULL;
+    ftn_error_t result;
     size_t name_len;
     size_t addr_len;
+    size_t user_len;
     
     if (!rfc_addr || !domain || !addr) return FTN_ERROR_INVALID_PARAMETER;
     
@@ -459,39 +601,69 @@ ftn_error_t rfc822_address_to_ftn(const char* rfc_addr, const char* domain, ftn_
         memcpy(addr_part, bracket_start + 1, addr_len);
         addr_part[addr_len] = '\0';
     } else {
-        /* No brackets, whole string is address */
-        addr_part = malloc(strlen(rfc_addr) + 1);
-        if (!addr_part) return FTN_ERROR_NOMEM;
-        strcpy(addr_part, rfc_addr);
+        /* No brackets, check if it's user@fqdn or Name <user@fqdn> format */
+        at_pos = strchr(rfc_addr, '@');
+        if (!at_pos) {
+            return FTN_ERROR_INVALID_FORMAT;
+        }
+        
+        /* Check if there's a space before the @ - indicates Name user@fqdn format */
+        space_pos = strrchr(rfc_addr, ' ');
+        if (space_pos && space_pos < at_pos) {
+            /* Extract name part */
+            name_len = space_pos - rfc_addr;
+            if (name_len > 0) {
+                name_part = malloc(name_len + 1);
+                if (name_part) {
+                    memcpy(name_part, rfc_addr, name_len);
+                    name_part[name_len] = '\0';
+                    
+                    /* Remove quotes if present */
+                    if (name_part[0] == '"' && name_part[name_len - 1] == '"') {
+                        memmove(name_part, name_part + 1, name_len - 2);
+                        name_part[name_len - 2] = '\0';
+                    }
+                }
+            }
+            
+            /* Extract address part after space */
+            addr_part = malloc(strlen(space_pos + 1) + 1);
+            if (!addr_part) {
+                free(name_part);
+                return FTN_ERROR_NOMEM;
+            }
+            strcpy(addr_part, space_pos + 1);
+        } else {
+            /* Simple user@fqdn format */
+            addr_part = malloc(strlen(rfc_addr) + 1);
+            if (!addr_part) return FTN_ERROR_NOMEM;
+            strcpy(addr_part, rfc_addr);
+        }
     }
     
-    /* Find @ symbol */
+    /* Extract user part from address for potential name */
     at_pos = strchr(addr_part, '@');
-    if (!at_pos) {
-        free(addr_part);
-        free(name_part);
-        return FTN_ERROR_INVALID_FORMAT;
+    if (at_pos && !name_part) {
+        /* Use user part as name if no name was specified */
+        user_len = at_pos - addr_part;
+        if (user_len > 0) {
+            user_part = malloc(user_len + 1);
+            if (user_part) {
+                memcpy(user_part, addr_part, user_len);
+                user_part[user_len] = '\0';
+                name_part = user_part;
+            }
+        }
     }
     
-    /* Split at @ */
-    *((char*)at_pos) = '\0';
-    domain_part = (char*)(at_pos + 1);
-    
-    /* Validate domain matches expected */
-    if (strcasecmp(domain_part, domain) != 0) {
-        free(addr_part);
-        free(name_part);
-        return FTN_ERROR_INVALID_FORMAT;
-    }
-    
-    /* Parse FTN address from local part */
-    result = ftn_address_parse(addr_part, addr);
+    /* Parse FQDN format address */
+    result = fqdn_to_ftn_address(addr_part, domain, addr);
     
     free(addr_part);
     
-    if (result == 0) {
+    if (result != FTN_OK) {
         free(name_part);
-        return FTN_ERROR_INVALID_FORMAT;
+        return result;
     }
     
     if (name) {
@@ -695,6 +867,24 @@ ftn_error_t ftn_to_rfc822(const ftn_message_t* ftn_msg, const char* domain, rfc8
         }
     }
     
+    /* Add area for Echomail */
+    if (ftn_msg->area) {
+        error = rfc822_message_add_header(msg, "X-FTN-Area", ftn_msg->area);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add origin line */
+    if (ftn_msg->origin) {
+        error = rfc822_message_add_header(msg, "X-FTN-Origin", ftn_msg->origin);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add tearline */
+    if (ftn_msg->tearline) {
+        error = rfc822_message_add_header(msg, "X-FTN-Tearline", ftn_msg->tearline);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
     /* Set body */
     if (ftn_msg->text) {
         error = rfc822_message_set_body(msg, ftn_msg->text);
@@ -781,11 +971,350 @@ ftn_error_t rfc822_to_ftn(const rfc822_message_t* rfc_msg, const char* domain, f
         msg->attributes = attributes;
     }
     
+    /* Extract area (for Echomail) */
+    header_value = rfc822_message_get_header(rfc_msg, "X-FTN-Area");
+    if (header_value) {
+        msg->area = malloc(strlen(header_value) + 1);
+        if (msg->area) {
+            strcpy(msg->area, header_value);
+            /* Change message type to Echomail if area is present */
+            msg->type = FTN_MSG_ECHOMAIL;
+        }
+    }
+    
+    /* Extract origin line */
+    header_value = rfc822_message_get_header(rfc_msg, "X-FTN-Origin");
+    if (header_value) {
+        msg->origin = malloc(strlen(header_value) + 1);
+        if (msg->origin) {
+            strcpy(msg->origin, header_value);
+        }
+    }
+    
+    /* Extract tearline */
+    header_value = rfc822_message_get_header(rfc_msg, "X-FTN-Tearline");
+    if (header_value) {
+        msg->tearline = malloc(strlen(header_value) + 1);
+        if (msg->tearline) {
+            strcpy(msg->tearline, header_value);
+        }
+    }
+    
     /* Set body */
     if (rfc_msg->body) {
         msg->text = malloc(strlen(rfc_msg->body) + 1);
         if (msg->text) {
             strcpy(msg->text, rfc_msg->body);
+        }
+    }
+    
+    *ftn_msg = msg;
+    return FTN_OK;
+}
+
+/* Generate newsgroup name from network and area */
+char* ftn_area_to_newsgroup(const char* network, const char* area) {
+    char* newsgroup;
+    char* lower_area;
+    size_t len;
+    size_t i;
+    
+    if (!network || !area) return NULL;
+    
+    /* Create lowercase copy of area name */
+    len = strlen(area);
+    lower_area = malloc(len + 1);
+    if (!lower_area) return NULL;
+    
+    for (i = 0; i < len; i++) {
+        lower_area[i] = tolower(area[i]);
+    }
+    lower_area[len] = '\0';
+    
+    /* Create newsgroup name: network.area */
+    len = strlen(network) + 1 + strlen(lower_area) + 1;
+    newsgroup = malloc(len);
+    if (newsgroup) {
+        snprintf(newsgroup, len, "%s.%s", network, lower_area);
+    }
+    
+    free(lower_area);
+    return newsgroup;
+}
+
+/* Extract area name from newsgroup */
+char* newsgroup_to_ftn_area(const char* newsgroup, const char* network) {
+    const char* dot_pos;
+    char* area;
+    size_t network_len;
+    size_t area_len;
+    size_t i;
+    
+    if (!newsgroup || !network) return NULL;
+    
+    network_len = strlen(network);
+    
+    /* Check if newsgroup starts with network. */
+    if (strncmp(newsgroup, network, network_len) != 0 ||
+        newsgroup[network_len] != '.') {
+        return NULL;
+    }
+    
+    /* Extract area part after the dot */
+    dot_pos = newsgroup + network_len + 1;
+    area_len = strlen(dot_pos);
+    
+    area = malloc(area_len + 1);
+    if (!area) return NULL;
+    
+    /* Convert to uppercase for FTN convention */
+    for (i = 0; i < area_len; i++) {
+        area[i] = toupper(dot_pos[i]);
+    }
+    area[area_len] = '\0';
+    
+    return area;
+}
+
+/* Convert FTN Echomail message to RFC1036 USENET article */
+ftn_error_t ftn_to_usenet(const ftn_message_t* ftn_msg, const char* network, rfc822_message_t** usenet_msg) {
+    rfc822_message_t* msg;
+    char* from_addr;
+    char* newsgroup;
+    char* date_str;
+    char buffer[256];
+    ftn_error_t error;
+    size_t i;
+    
+    if (!ftn_msg || !network || !usenet_msg) return FTN_ERROR_INVALID_PARAMETER;
+    
+    /* Only convert Echomail messages */
+    if (ftn_msg->type != FTN_MSG_ECHOMAIL || !ftn_msg->area) {
+        return FTN_ERROR_INVALID_PARAMETER;
+    }
+    
+    msg = rfc822_message_new();
+    if (!msg) return FTN_ERROR_NOMEM;
+    
+    /* Set From header (use default domain for USENET) */
+    from_addr = ftn_address_to_rfc822(&ftn_msg->orig_addr, ftn_msg->from_user, "fidonet.org");
+    if (from_addr) {
+        error = rfc822_message_add_header(msg, "From", from_addr);
+        free(from_addr);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Newsgroups header */
+    newsgroup = ftn_area_to_newsgroup(network, ftn_msg->area);
+    if (newsgroup) {
+        error = rfc822_message_add_header(msg, "Newsgroups", newsgroup);
+        free(newsgroup);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Subject header */
+    if (ftn_msg->subject) {
+        error = rfc822_message_add_header(msg, "Subject", ftn_msg->subject);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Date header */
+    date_str = ftn_timestamp_to_rfc822(ftn_msg->timestamp);
+    if (date_str) {
+        error = rfc822_message_add_header(msg, "Date", date_str);
+        free(date_str);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set Message-ID header if MSGID is available */
+    if (ftn_msg->msgid) {
+        error = rfc822_message_add_header(msg, "Message-ID", ftn_msg->msgid);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set References header if REPLY is available */
+    if (ftn_msg->reply) {
+        error = rfc822_message_add_header(msg, "References", ftn_msg->reply);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add Organization header (origin line) */
+    if (ftn_msg->origin) {
+        error = rfc822_message_add_header(msg, "Organization", ftn_msg->origin);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add FTN-specific X- headers for round-trip compatibility */
+    snprintf(buffer, sizeof(buffer), "%u:%u/%u.%u", ftn_msg->orig_addr.zone, ftn_msg->orig_addr.net,
+             ftn_msg->orig_addr.node, ftn_msg->orig_addr.point);
+    error = rfc822_message_add_header(msg, "X-FTN-From", buffer);
+    if (error != FTN_OK) goto error_cleanup;
+    
+    if (ftn_msg->attributes) {
+        snprintf(buffer, sizeof(buffer), "0x%04X", ftn_msg->attributes);
+        error = rfc822_message_add_header(msg, "X-FTN-Attributes", buffer);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Add control paragraphs as X-FTN headers */
+    for (i = 0; i < ftn_msg->control_count; i++) {
+        if (ftn_msg->control_lines[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Control", ftn_msg->control_lines[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Add SEEN-BY lines */
+    for (i = 0; i < ftn_msg->seenby_count; i++) {
+        if (ftn_msg->seenby[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Seen-By", ftn_msg->seenby[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Add PATH lines */
+    for (i = 0; i < ftn_msg->path_count; i++) {
+        if (ftn_msg->path[i]) {
+            error = rfc822_message_add_header(msg, "X-FTN-Path", ftn_msg->path[i]);
+            if (error != FTN_OK) goto error_cleanup;
+        }
+    }
+    
+    /* Add tearline */
+    if (ftn_msg->tearline) {
+        error = rfc822_message_add_header(msg, "X-FTN-Tearline", ftn_msg->tearline);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    /* Set body */
+    if (ftn_msg->text) {
+        error = rfc822_message_set_body(msg, ftn_msg->text);
+        if (error != FTN_OK) goto error_cleanup;
+    }
+    
+    *usenet_msg = msg;
+    return FTN_OK;
+    
+error_cleanup:
+    rfc822_message_free(msg);
+    return error;
+}
+
+/* Convert RFC1036 USENET article to FTN Echomail message */
+ftn_error_t usenet_to_ftn(const rfc822_message_t* usenet_msg, const char* network, ftn_message_t** ftn_msg) {
+    ftn_message_t* msg;
+    const char* header_value;
+    char* name = NULL;
+    char* area;
+    ftn_error_t error;
+    unsigned int attributes;
+    
+    if (!usenet_msg || !network || !ftn_msg) return FTN_ERROR_INVALID_PARAMETER;
+    
+    msg = ftn_message_new(FTN_MSG_ECHOMAIL);
+    if (!msg) return FTN_ERROR_NOMEM;
+    
+    /* Extract area from Newsgroups header */
+    header_value = rfc822_message_get_header(usenet_msg, "Newsgroups");
+    if (header_value) {
+        area = newsgroup_to_ftn_area(header_value, network);
+        if (area) {
+            msg->area = area;
+        }
+    }
+    
+    /* Extract From user name from regular From header */
+    header_value = rfc822_message_get_header(usenet_msg, "From");
+    if (header_value) {
+        ftn_address_t temp_addr;
+        error = rfc822_address_to_ftn(header_value, "fidonet.org", &temp_addr, &name);
+        if (error == FTN_OK && name) {
+            msg->from_user = name;
+            name = NULL;
+        }
+    }
+    
+    /* Use X-FTN-From for the actual FTN origin address */
+    header_value = rfc822_message_get_header(usenet_msg, "X-FTN-From");
+    if (header_value) {
+        ftn_address_parse(header_value, &msg->orig_addr);
+    }
+    
+    /* For Echomail, we need a destination address - use a default uplink if not specified */
+    /* This could be enhanced to extract from routing headers or use configuration */
+    msg->dest_addr.zone = msg->orig_addr.zone;
+    msg->dest_addr.net = msg->orig_addr.net;
+    msg->dest_addr.node = 1; /* Default to net coordinator */
+    msg->dest_addr.point = 0;
+    
+    /* Set To user as "All" for Echomail */
+    msg->to_user = malloc(4);
+    if (msg->to_user) {
+        strcpy(msg->to_user, "All");
+    }
+    
+    /* Extract Subject */
+    header_value = rfc822_message_get_header(usenet_msg, "Subject");
+    if (header_value) {
+        msg->subject = malloc(strlen(header_value) + 1);
+        if (msg->subject) {
+            strcpy(msg->subject, header_value);
+        }
+    }
+    
+    /* Extract Date */
+    header_value = rfc822_message_get_header(usenet_msg, "Date");
+    if (header_value) {
+        rfc822_date_to_timestamp(header_value, &msg->timestamp);
+    }
+    
+    /* Extract Message-ID */
+    header_value = rfc822_message_get_header(usenet_msg, "Message-ID");
+    if (header_value) {
+        msg->msgid = malloc(strlen(header_value) + 1);
+        if (msg->msgid) {
+            strcpy(msg->msgid, header_value);
+        }
+    }
+    
+    /* Extract References (use as REPLY) */
+    header_value = rfc822_message_get_header(usenet_msg, "References");
+    if (header_value) {
+        msg->reply = malloc(strlen(header_value) + 1);
+        if (msg->reply) {
+            strcpy(msg->reply, header_value);
+        }
+    }
+    
+    /* Extract Organization (use as origin) */
+    header_value = rfc822_message_get_header(usenet_msg, "Organization");
+    if (header_value) {
+        msg->origin = malloc(strlen(header_value) + 1);
+        if (msg->origin) {
+            strcpy(msg->origin, header_value);
+        }
+    }
+    
+    /* Extract FTN attributes */
+    header_value = rfc822_message_get_header(usenet_msg, "X-FTN-Attributes");
+    if (header_value && sscanf(header_value, "0x%X", &attributes) == 1) {
+        msg->attributes = attributes;
+    }
+    
+    /* Extract tearline */
+    header_value = rfc822_message_get_header(usenet_msg, "X-FTN-Tearline");
+    if (header_value) {
+        msg->tearline = malloc(strlen(header_value) + 1);
+        if (msg->tearline) {
+            strcpy(msg->tearline, header_value);
+        }
+    }
+    
+    /* Set body */
+    if (usenet_msg->body) {
+        msg->text = malloc(strlen(usenet_msg->body) + 1);
+        if (msg->text) {
+            strcpy(msg->text, usenet_msg->body);
         }
     }
     

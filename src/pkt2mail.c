@@ -1,5 +1,5 @@
 /*
- * pkt2maildir - Convert FidoNet packet files to maildir format
+ * pkt2mail - Convert FidoNet packet files to maildir format
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 

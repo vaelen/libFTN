@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 static void print_usage(const char* program_name) {
     printf("Usage: %s [options] <output_file>\n", program_name);
@@ -23,6 +24,7 @@ static void print_usage(const char* program_name) {
     printf("  --text <text>                         Message text\n");
     printf("  --private                             Mark message as private\n");
     printf("  --crash                               Mark message as crash priority\n");
+    printf("  -o <dir>                              Output directory (optional)\n");
     printf("\nExample (Netmail):\n");
     printf("  %s --from-addr 1:2/3 --to-addr 1:4/5 --netmail \\\n", program_name);
     printf("    --from-user \"John Doe\" --to-user \"Jane Smith\" \\\n");
@@ -31,6 +33,10 @@ static void print_usage(const char* program_name) {
     printf("  %s --from-addr 1:2/3 --to-addr 1:4/5 --echomail TEST.AREA \\\n", program_name);
     printf("    --from-user \"John Doe\" --to-user \"All\" \\\n");
     printf("    --subject \"Test Echo\" --text \"Hello, everyone!\" test.pkt\n");
+    printf("\nExample (with output directory):\n");
+    printf("  %s -o /tmp/outgoing --from-addr 1:2/3 --to-addr 1:4/5 --netmail \\\n", program_name);
+    printf("    --from-user \"John Doe\" --to-user \"Jane Smith\" \\\n");
+    printf("    --subject \"Test Message\" --text \"Hello, World!\" test.pkt\n");
 }
 
 static ftn_error_t parse_address(const char* addr_str, ftn_address_t* addr) {
@@ -73,6 +79,7 @@ int main(int argc, char* argv[]) {
     ftn_message_t* message;
     ftn_address_t from_addr, to_addr;
     char* output_file = NULL;
+    char* output_dir = NULL;
     char* echo_area = NULL;
     char* from_user = NULL;
     char* to_user = NULL;
@@ -119,6 +126,8 @@ int main(int argc, char* argv[]) {
             is_private = 1;
         } else if (strcmp(argv[i], "--crash") == 0) {
             is_crash = 1;
+        } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+            output_dir = argv[++i];
         } else if (argv[i][0] != '-') {
             output_file = argv[i];
         } else {
@@ -214,11 +223,61 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    /* Handle output directory if specified */
+    if (output_dir) {
+        char* full_path;
+        size_t path_len;
+        const char* filename;
+        struct stat st;
+        
+        /* Create output directory if it doesn't exist */
+        if (stat(output_dir, &st) != 0) {
+            if (mkdir(output_dir, 0755) != 0) {
+                printf("Error: Failed to create output directory: %s\n", output_dir);
+                ftn_packet_free(packet);
+                return 1;
+            }
+        } else if (!S_ISDIR(st.st_mode)) {
+            printf("Error: %s exists but is not a directory\n", output_dir);
+            ftn_packet_free(packet);
+            return 1;
+        }
+        
+        /* Extract filename from output_file */
+        filename = strrchr(output_file, '/');
+        if (filename) {
+            filename++; /* Skip the '/' */
+        } else {
+            filename = output_file; /* No path separator found */
+        }
+        
+        /* Construct full path */
+        path_len = strlen(output_dir) + 1 + strlen(filename) + 1;
+        full_path = malloc(path_len);
+        if (!full_path) {
+            printf("Error: Out of memory\n");
+            ftn_packet_free(packet);
+            return 1;
+        }
+        
+        if (output_dir[strlen(output_dir) - 1] == '/') {
+            snprintf(full_path, path_len, "%s%s", output_dir, filename);
+        } else {
+            snprintf(full_path, path_len, "%s/%s", output_dir, filename);
+        }
+        
+        /* Update output_file to the full path */
+        output_file = full_path;
+    }
+    
     /* Save packet */
     printf("Creating packet: %s\n", output_file);
     result = ftn_packet_save(output_file, packet);
     if (result != FTN_OK) {
         printf("Error: Failed to save packet (error %d)\n", result);
+        if (output_dir) {
+            free((char*)output_file); /* Free the allocated full_path */
+        }
         ftn_packet_free(packet);
         return 1;
     }
@@ -231,6 +290,11 @@ int main(int argc, char* argv[]) {
     printf("From: %s\n", from_user);
     printf("To:   %s\n", to_user);
     printf("Subject: %s\n", subject);
+    
+    /* Clean up allocated memory */
+    if (output_dir) {
+        free((char*)output_file); /* Free the allocated full_path */
+    }
     
     ftn_packet_free(packet);
     return 0;

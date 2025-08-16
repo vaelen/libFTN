@@ -173,7 +173,7 @@ static int test_ftn_address_to_rfc822(void) {
     
     /* Test with name */
     rfc_addr = ftn_address_to_rfc822(&addr, "John Doe", "fidonet.org");
-    if (!rfc_addr || strstr(rfc_addr, "John Doe") == NULL || strstr(rfc_addr, "1:2/3.4@fidonet.org") == NULL) {
+    if (!rfc_addr || strstr(rfc_addr, "John Doe") == NULL || strstr(rfc_addr, "john_doe@4.3.2.1.fidonet.org") == NULL) {
         free(rfc_addr);
         return 0;
     }
@@ -181,7 +181,7 @@ static int test_ftn_address_to_rfc822(void) {
     
     /* Test without name */
     rfc_addr = ftn_address_to_rfc822(&addr, NULL, "fidonet.org");
-    if (!rfc_addr || strcmp(rfc_addr, "1:2/3.4@fidonet.org") != 0) {
+    if (!rfc_addr || strcmp(rfc_addr, "user@4.3.2.1.fidonet.org") != 0) {
         free(rfc_addr);
         return 0;
     }
@@ -195,37 +195,64 @@ static int test_rfc822_address_to_ftn(void) {
     ftn_address_t addr;
     char* name = NULL;
     
-    /* Test with name and brackets */
-    if (rfc822_address_to_ftn("\"John Doe\" <1:2/3.4@fidonet.org>", "fidonet.org", &addr, &name) != FTN_OK) {
+    /* Test format: "Name With Whitespace" <user@fqdn> */
+    if (rfc822_address_to_ftn("\"Andrew Young\" <vaelen@141.1.21.fidonet.org>", "fidonet.org", &addr, &name) != FTN_OK) {
         return 0;
     }
-    
-    if (addr.zone != 1 || addr.net != 2 || addr.node != 3 || addr.point != 4) {
+    if (addr.zone != 21 || addr.net != 1 || addr.node != 141 || addr.point != 0) {
         free(name);
         return 0;
     }
-    
-    if (!name || strcmp(name, "John Doe") != 0) {
+    if (!name || strcmp(name, "Andrew Young") != 0) {
         free(name);
         return 0;
     }
     free(name);
-    
-    /* Test without name */
     name = NULL;
-    if (rfc822_address_to_ftn("1:2/3.0@fidonet.org", "fidonet.org", &addr, &name) != FTN_OK) {
+    
+    /* Test format: Name <user@fqdn> */
+    if (rfc822_address_to_ftn("Sysop <sysop@141.1.21.fidonet.org>", "fidonet.org", &addr, &name) != FTN_OK) {
         return 0;
     }
-    
-    if (addr.zone != 1 || addr.net != 2 || addr.node != 3 || addr.point != 0) {
+    if (addr.zone != 21 || addr.net != 1 || addr.node != 141 || addr.point != 0) {
         free(name);
         return 0;
     }
-    
-    if (name != NULL) {
+    if (!name || strcmp(name, "Sysop") != 0) {
         free(name);
         return 0;
     }
+    free(name);
+    name = NULL;
+    
+    /* Test format: <user@fqdn> */
+    if (rfc822_address_to_ftn("<sysop@100.1.21.fidonet.org>", "fidonet.org", &addr, &name) != FTN_OK) {
+        return 0;
+    }
+    if (addr.zone != 21 || addr.net != 1 || addr.node != 100 || addr.point != 0) {
+        free(name);
+        return 0;
+    }
+    if (!name || strcmp(name, "sysop") != 0) {
+        free(name);
+        return 0;
+    }
+    free(name);
+    name = NULL;
+    
+    /* Test format: user@fqdn */
+    if (rfc822_address_to_ftn("vaelen@141.1.21.fidonet.org", "fidonet.org", &addr, &name) != FTN_OK) {
+        return 0;
+    }
+    if (addr.zone != 21 || addr.net != 1 || addr.node != 141 || addr.point != 0) {
+        free(name);
+        return 0;
+    }
+    if (!name || strcmp(name, "vaelen") != 0) {
+        free(name);
+        return 0;
+    }
+    free(name);
     
     return 1;
 }
@@ -279,14 +306,14 @@ static int test_ftn_to_rfc822_conversion(void) {
     
     /* Check headers */
     from = rfc822_message_get_header(rfc_msg, "From");
-    if (!from || strstr(from, "John Doe") == NULL || strstr(from, "1:2/3@fidonet.org") == NULL) {
+    if (!from || strstr(from, "John Doe") == NULL || strstr(from, "john_doe@3.2.1.fidonet.org") == NULL) {
         rfc822_message_free(rfc_msg);
         ftn_message_free(ftn_msg);
         return 0;
     }
     
     to = rfc822_message_get_header(rfc_msg, "To");
-    if (!to || strstr(to, "Jane Smith") == NULL || strstr(to, "1:2/4@fidonet.org") == NULL) {
+    if (!to || strstr(to, "Jane Smith") == NULL || strstr(to, "jane_smith@4.2.1.fidonet.org") == NULL) {
         rfc822_message_free(rfc_msg);
         ftn_message_free(ftn_msg);
         return 0;
@@ -320,8 +347,8 @@ static int test_rfc822_to_ftn_conversion(void) {
     if (!rfc_msg) return 0;
     
     /* Set up RFC822 message */
-    rfc822_message_add_header(rfc_msg, "From", "\"John Doe\" <1:2/3.0@fidonet.org>");
-    rfc822_message_add_header(rfc_msg, "To", "\"Jane Smith\" <1:2/4.0@fidonet.org>");
+    rfc822_message_add_header(rfc_msg, "From", "\"John Doe\" <3.2.1.fidonet.org>");
+    rfc822_message_add_header(rfc_msg, "To", "\"Jane Smith\" <4.2.1.fidonet.org>");
     rfc822_message_add_header(rfc_msg, "Subject", "Test Subject");
     rfc822_message_add_header(rfc_msg, "Date", "01 Jan 2024 00:00:00");
     rfc822_message_set_body(rfc_msg, "Test message body");

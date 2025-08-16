@@ -87,4 +87,18 @@ ftn_error_t rfc822_date_to_timestamp(const char* date_str, time_t* timestamp);
 char* rfc822_encode_text(const char* text);
 char* rfc822_decode_text(const char* text);
 
+/* RFC1036 USENET conversion functions */
+
+/* Convert FTN Echomail message to RFC1036 USENET article */
+ftn_error_t ftn_to_usenet(const ftn_message_t* ftn_msg, const char* network, rfc822_message_t** usenet_msg);
+
+/* Convert RFC1036 USENET article to FTN Echomail message */
+ftn_error_t usenet_to_ftn(const rfc822_message_t* usenet_msg, const char* network, ftn_message_t** ftn_msg);
+
+/* Generate newsgroup name from network and area */
+char* ftn_area_to_newsgroup(const char* network, const char* area);
+
+/* Extract area name from newsgroup */
+char* newsgroup_to_ftn_area(const char* newsgroup, const char* network);
+
 #endif /* RFC822_H */

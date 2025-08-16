@@ -1,4 +1,7 @@
-# RFC822 to/from FidoNet
+# Support for Internet Mail Messages
+
+The libFTN suite of applications supports conversion of FidoNet Netmail messages to and from the standard
+Internet Mail message format defined in [RFC822](docs/rfc822.txt).
 
 ## RFC822
 - The details of RFC822 can be found in docs/rfc822.txt. However, here is the basic idea:
