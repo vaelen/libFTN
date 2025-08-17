@@ -5,7 +5,7 @@
  * Example program to search for entries in a FidoNet nodelist
  */
 
-#include "ftn.h"
+#include <ftn.h>
 
 static void print_version(void) {
     printf("nllookup (libFTN) %s\n", ftn_get_version());

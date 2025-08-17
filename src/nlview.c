@@ -5,7 +5,7 @@
  * Example program to display the contents of a FidoNet nodelist
  */
 
-#include "ftn.h"
+#include <ftn.h>
 
 static void print_version(void) {
     printf("nlview (libFTN) %s\n", ftn_get_version());

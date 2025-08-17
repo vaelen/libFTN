@@ -3,7 +3,7 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include "ftn.h"
+#include <ftn.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>

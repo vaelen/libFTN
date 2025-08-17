@@ -3,7 +3,7 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include "ftn.h"
+#include <ftn.h>
 #include <ctype.h>
 
 static int strcasecmp_portable(const char* s1, const char* s2) {
