@@ -414,8 +414,7 @@ int main(int argc, char* argv[]) {
                 if (dot_pos) {
                     size_t prefix_len = dot_pos - newsgroups;
                     if (prefix_len < sizeof(network_prefix) - 1) {
-                        strncpy(network_prefix, newsgroups, prefix_len);
-                        network_prefix[prefix_len] = '\0';
+                        strlcpy(network_prefix, newsgroups, prefix_len + 1);
                         /* Check if this matches our expected network */
                         if (strstr(domain, network_prefix) || 
                             (network && strcasecmp(network_prefix, network) == 0)) {

@@ -82,8 +82,8 @@ ftn_error_t rfc822_message_add_header(rfc822_message_t* message, const char* nam
         return FTN_ERROR_NOMEM;
     }
     
-    strcpy(header->name, name);
-    strcpy(header->value, value);
+    strlcpy(header->name, name, strlen(name) + 1);
+    strlcpy(header->value, value, strlen(value) + 1);
     
     message->headers[message->header_count++] = header;
     
@@ -118,7 +118,7 @@ ftn_error_t rfc822_message_set_header(rfc822_message_t* message, const char* nam
             new_value = malloc(strlen(value) + 1);
             if (!new_value) return FTN_ERROR_NOMEM;
             
-            strcpy(new_value, value);
+            strlcpy(new_value, value, strlen(value) + 1);
             free(message->headers[i]->value);
             message->headers[i]->value = new_value;
             return FTN_OK;
@@ -162,7 +162,7 @@ ftn_error_t rfc822_message_set_body(rfc822_message_t* message, const char* body)
     if (body) {
         new_body = malloc(strlen(body) + 1);
         if (!new_body) return FTN_ERROR_NOMEM;
-        strcpy(new_body, body);
+        strlcpy(new_body, body, strlen(body) + 1);
     } else {
         new_body = NULL;
     }
@@ -1253,8 +1253,7 @@ ftn_error_t usenet_to_ftn(const rfc822_message_t* usenet_msg, const char* networ
                     size_t name_len = end - start + 1;
                     msg->from_user = malloc(name_len + 1);
                     if (msg->from_user) {
-                        strncpy(msg->from_user, start, name_len);
-                        msg->from_user[name_len] = '\0';
+                        strlcpy(msg->from_user, start, name_len + 1);
                     }
                 }
             } else if (!bracket) {
@@ -1264,8 +1263,7 @@ ftn_error_t usenet_to_ftn(const rfc822_message_t* usenet_msg, const char* networ
                     size_t name_len = at - start;
                     msg->from_user = malloc(name_len + 1);
                     if (msg->from_user) {
-                        strncpy(msg->from_user, start, name_len);
-                        msg->from_user[name_len] = '\0';
+                        strlcpy(msg->from_user, start, name_len + 1);
                     }
                 }
             }

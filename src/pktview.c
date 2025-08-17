@@ -218,8 +218,8 @@ int main(int argc, char* argv[]) {
     }
     
     if (message_num > (int)packet->message_count) {
-        printf("Error: Message number %d not found (packet has %zu messages)\n", 
-               message_num, packet->message_count);
+        printf("Error: Message number %d not found (packet has %lu messages)\n", 
+               message_num, (unsigned long)packet->message_count);
         ftn_packet_free(packet);
         return 1;
     }

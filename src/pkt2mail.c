@@ -84,14 +84,13 @@ static char* expand_user_path(const char* path_template, const char* username) {
         /* No token found, return copy of original path */
         expanded = malloc(strlen(path_template) + 1);
         if (expanded) {
-            strcpy(expanded, path_template);
+            strlcpy(expanded, path_template, strlen(path_template) + 1);
         }
         return expanded;
     }
     
     /* Convert username to lowercase */
-    strncpy(username_lower, username, sizeof(username_lower) - 1);
-    username_lower[sizeof(username_lower) - 1] = '\0';
+    strlcpy(username_lower, username, sizeof(username_lower));
     str_tolower(username_lower);
     sanitize_filename(username_lower);
     
@@ -103,11 +102,11 @@ static char* expand_user_path(const char* path_template, const char* username) {
     expanded = malloc(prefix_len + username_len + suffix_len + 1);
     if (expanded) {
         /* Copy prefix */
-        strncpy(expanded, path_template, prefix_len);
+        memcpy(expanded, path_template, prefix_len);
         /* Copy username */
-        strcpy(expanded + prefix_len, username_lower);
+        strlcpy(expanded + prefix_len, username_lower, username_len + 1);
         /* Copy suffix */
-        strcpy(expanded + prefix_len + username_len, pos + token_len);
+        strlcpy(expanded + prefix_len + username_len, pos + token_len, suffix_len + 1);
     }
     
     return expanded;
@@ -173,7 +172,7 @@ static char* generate_filename(const ftn_message_t* message) {
     if (message->msgid && *message->msgid) {
         filename = malloc(strlen(message->msgid) + 1);
         if (filename) {
-            strcpy(filename, message->msgid);
+            strlcpy(filename, message->msgid, strlen(message->msgid) + 1);
             /* Remove angle brackets if present */
             if (filename[0] == '<' && filename[strlen(filename)-1] == '>') {
                 memmove(filename, filename + 1, strlen(filename) - 2);
@@ -195,7 +194,7 @@ static char* generate_filename(const ftn_message_t* message) {
                      tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
                      tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
         } else {
-            strcpy(timestamp_str, "unknown");
+            strlcpy(timestamp_str, "unknown", sizeof(timestamp_str));
         }
     } else {
         /* Use current time if no timestamp available */
@@ -206,7 +205,7 @@ static char* generate_filename(const ftn_message_t* message) {
                      tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
                      tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
         } else {
-            strcpy(timestamp_str, "unknown");
+            strlcpy(timestamp_str, "unknown", sizeof(timestamp_str));
         }
     }
     
@@ -239,7 +238,7 @@ static int message_exists(const char* maildir_path, const char* filename, const 
     } else {
         actual_maildir_path = malloc(strlen(maildir_path) + 1);
         if (actual_maildir_path) {
-            strcpy(actual_maildir_path, maildir_path);
+            strlcpy(actual_maildir_path, maildir_path, strlen(maildir_path) + 1);
         } else {
             return 0;
         }
@@ -309,7 +308,7 @@ static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
     } else {
         actual_maildir_path = malloc(strlen(maildir_path) + 1);
         if (actual_maildir_path) {
-            strcpy(actual_maildir_path, maildir_path);
+            strlcpy(actual_maildir_path, maildir_path, strlen(maildir_path) + 1);
         } else {
             return FTN_ERROR_NOMEM;
         }

@@ -27,6 +27,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+/* Define BSD flag for platforms that have BSD-style functions */
+#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__APPLE__)
+#define __BSD__ 1
+#endif
+
 /* Compatibility layer for functions not available in ANSI C89 */
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L
@@ -56,5 +61,12 @@ int strncasecmp(const char *s1, const char *s2, size_t n);
 #endif
 
 #endif /* POSIX compatibility */
+
+/* String functions that aren't universally available */
+
+/* BSD has strlcpy, but not all systems do */
+#if !defined(__BSD__)
+size_t strlcpy(char* dst, const char* src, size_t size);
+#endif
 
 #endif /* COMPAT_H */

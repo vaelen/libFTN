@@ -206,6 +206,78 @@ static void test_strncasecmp(void) {
     printf("strncasecmp: PASSED\n");
 }
 
+static void test_strlcpy(void) {
+    char buffer[32];
+    size_t result;
+    
+    printf("Testing strlcpy...\n");
+    
+    /* Test basic functionality */
+    result = strlcpy(buffer, "Hello World", sizeof(buffer));
+    assert(result == 11);
+    assert(strcmp(buffer, "Hello World") == 0);
+    
+    /* Test truncation */
+    result = strlcpy(buffer, "This is a very long string that will be truncated", 10);
+    assert(result == 49); /* Should return full source length */
+    assert(strlen(buffer) == 9); /* Should be truncated to fit */
+    assert(strcmp(buffer, "This is a") == 0);
+    assert(buffer[9] == '\0'); /* Should be null-terminated */
+    
+    /* Test exact fit */
+    result = strlcpy(buffer, "1234567890", 11);
+    assert(result == 10);
+    assert(strcmp(buffer, "1234567890") == 0);
+    
+    /* Test buffer size 1 */
+    result = strlcpy(buffer, "test", 1);
+    assert(result == 4);
+    assert(strcmp(buffer, "") == 0);
+    assert(buffer[0] == '\0');
+    
+    /* Test buffer size 0 */
+    result = strlcpy(NULL, "test", 0);
+    assert(result == 4);
+    
+    /* Test NULL source */
+    result = strlcpy(buffer, NULL, sizeof(buffer));
+    assert(result == 0);
+    assert(buffer[0] == '\0');
+    
+    /* Test NULL source with NULL destination */
+    result = strlcpy(NULL, NULL, 0);
+    assert(result == 0);
+    
+    /* Test empty string */
+    result = strlcpy(buffer, "", sizeof(buffer));
+    assert(result == 0);
+    assert(strcmp(buffer, "") == 0);
+    
+    /* Test FTN address formatting scenario */
+    result = strlcpy(buffer, "21:1/101.5", sizeof(buffer));
+    assert(result == 10);
+    assert(strcmp(buffer, "21:1/101.5") == 0);
+    
+    /* Test username truncation scenario */
+    result = strlcpy(buffer, "very_long_username_that_exceeds_buffer", 16);
+    assert(result == 38);
+    assert(strlen(buffer) == 15);
+    assert(strcmp(buffer, "very_long_usern") == 0);
+    assert(buffer[15] == '\0');
+    
+    /* Test one character source */
+    result = strlcpy(buffer, "A", sizeof(buffer));
+    assert(result == 1);
+    assert(strcmp(buffer, "A") == 0);
+    
+    /* Test buffer exactly one larger than source */
+    result = strlcpy(buffer, "test", 5);
+    assert(result == 4);
+    assert(strcmp(buffer, "test") == 0);
+    
+    printf("strlcpy: PASSED\n");
+}
+
 int main(void) {
     printf("Running compatibility tests...\n\n");
     
@@ -214,6 +286,7 @@ int main(void) {
     test_strtok_r();
     test_strcasecmp();
     test_strncasecmp();
+    test_strlcpy();
     
     printf("\nAll compatibility tests passed!\n");
     return 0;

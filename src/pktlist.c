@@ -57,7 +57,8 @@ static void print_message_summary(size_t index, const ftn_message_t* message) {
     tm_info = localtime(&message->timestamp);
     strftime(timestamp_str, sizeof(timestamp_str), "%Y-%m-%d %H:%M:%S", tm_info);
     
-    printf("%3zu. %-8s %s -> %s\n", 
+    printf("%3lu. %-8s %s -> %s\n",
+           (unsigned long) 
            index + 1, 
            message_type_name(message->type),
            from_addr, 
@@ -123,7 +124,7 @@ static int process_packet_file(const char* filename, int show_header) {
     
     print_packet_header(&packet->header);
     
-    printf("Messages (%zu total):\n\n", packet->message_count);
+    printf("Messages (%lu total):\n\n", (unsigned long)packet->message_count);
     
     if (packet->message_count == 0) {
         printf("  (no messages)\n");

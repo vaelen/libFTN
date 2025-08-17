@@ -228,7 +228,7 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        printf("  Added %zu messages\n", input_packet->message_count);
+        printf("  Added %lu messages\n", (unsigned long)input_packet->message_count);
         ftn_packet_free(input_packet);
     }
     
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
     
     printf("\nBundle created successfully:\n");
     printf("  Output file: %s\n", output_file);
-    printf("  Total messages: %zu\n", total_messages);
+    printf("  Total messages: %lu\n", (unsigned long)total_messages);
     printf("  From: %u:%u/%u\n", from_addr.zone, from_addr.net, from_addr.node);
     printf("  To:   %u:%u/%u\n", to_addr.zone, to_addr.net, to_addr.node);
     

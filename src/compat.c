@@ -47,18 +47,8 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
     }
     
     /* Copy as much as will fit into the destination buffer */
-    if ((size_t)result >= size) {
-        /* Truncate to fit */
-        if (size > 0) {
-            strncpy(buffer, temp_buffer, size - 1);
-            buffer[size - 1] = '\0';
-        }
-        return result; /* Return what would have been written */
-    } else {
-        /* Fits completely - use memcpy for extra safety */
-        memcpy(buffer, temp_buffer, result + 1);
-        return result;
-    }
+    strlcpy(buffer, temp_buffer, size);
+    return result;
 }
 
 int snprintf(char* buffer, size_t size, const char* format, ...) {
@@ -172,3 +162,36 @@ int strncasecmp(const char *s1, const char *s2, size_t n) {
 #endif /* Non-Windows string comparison functions */
 
 #endif /* POSIX compatibility functions */
+
+/* String functions that aren't universally available */
+
+/* BSD has strlcpy, but not all systems do */
+#if !defined(__BSD__)
+
+size_t strlcpy(char* dst, const char* src, size_t size) {
+    size_t src_len;
+    size_t copy_len;
+    
+    if (!src) {
+        if (dst && size > 0) {
+            *dst = '\0';
+        }
+        return 0;
+    }
+    
+    src_len = strlen(src);
+    
+    if (!dst || size == 0) {
+        return src_len;
+    }
+    
+    /* Copy as much as will fit, leaving room for null terminator */
+    copy_len = (src_len >= size) ? size - 1 : src_len;
+    memcpy(dst, src, copy_len);
+    dst[copy_len] = '\0';
+    
+    /* Return total length of source string */
+    return src_len;
+}
+
+#endif

@@ -456,8 +456,7 @@ size_t ftn_nodelist_parse_inet_flags(const char* flags, ftn_inet_service_t** ser
             memset(new_service, 0, sizeof(ftn_inet_service_t));
             
             /* Extract protocol name */
-            strncpy(protocol_name, flag, 3);
-            protocol_name[3] = '\0';
+            strlcpy(protocol_name, flag, 4);
             new_service->protocol = ftn_inet_protocol_from_string(protocol_name);
             
             /* Parse hostname and port */
