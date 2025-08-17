@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "compat.h"
+#include "ftn/compat.h"
 
 #ifdef __STDC__
 #define STDC89_COMPLIANT 1
@@ -59,10 +59,10 @@ typedef struct {
 } ftn_address_t;
 
 /* Include nodelist functionality */
-#include "nodelist.h"
-#include "packet.h"
-#include "rfc822.h"
-#include "version.h"
+#include "ftn/nodelist.h"
+#include "ftn/packet.h"
+#include "ftn/rfc822.h"
+#include "ftn/version.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);

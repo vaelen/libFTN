@@ -3,7 +3,7 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include "../include/version.h"
+#include "../include/ftn/version.h"
 
 const char* ftn_get_version(void) {
     return FTN_VERSION_STRING;

@@ -10,6 +10,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <ctype.h>
 
 static void print_version(void) {
     printf("pkt2mail (libFTN) %s\n", ftn_get_version());
@@ -24,15 +25,92 @@ static void print_usage(const char* program_name) {
     printf("\n");
     printf("Options:\n");
     printf("  -d, --domain <name>  Domain name for RFC822 addresses (default: fidonet.org)\n");
+    printf("  -u, --user <name>    Only process NetMail for specified user (case insensitive)\n");
     printf("  -h, --help           Show this help message\n");
     printf("      --version        Show version information\n");
     printf("\n");
     printf("Arguments:\n");
-    printf("  maildir_path     Path to maildir directory\n");
+    printf("  maildir_path     Path to maildir directory (use %%USER%% for per-user folders)\n");
     printf("  packet_files     One or more FidoNet packet (.pkt) files\n");
     printf("\n");
     printf("The maildir directory structure will be created if it doesn't exist.\n");
     printf("Only NetMail messages will be processed.\n");
+    printf("If %%USER%% is in the path, it will be replaced with the recipient's name in lowercase.\n");
+}
+
+/* Replace special characters in filename with underscores */
+static void sanitize_filename(char* filename) {
+    char* p;
+    
+    if (!filename) return;
+    
+    for (p = filename; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' || 
+            *p == '?' || *p == '"' || *p == '<' || *p == '>' || 
+            *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
+            *p == '\r') {
+            *p = '_';
+        }
+    }
+}
+
+/* Convert string to lowercase */
+static void str_tolower(char* str) {
+    char* p;
+    if (!str) return;
+    for (p = str; *p; p++) {
+        *p = tolower((unsigned char)*p);
+    }
+}
+
+/* Replace %USER% in path with actual username */
+static char* expand_user_path(const char* path_template, const char* username) {
+    const char* user_token = "%USER%";
+    const char* pos;
+    char* expanded;
+    char username_lower[256];
+    size_t token_len = strlen(user_token);
+    size_t username_len;
+    size_t prefix_len;
+    size_t suffix_len;
+    
+    if (!path_template || !username) {
+        return NULL;
+    }
+    
+    /* Find %USER% token */
+    pos = strstr(path_template, user_token);
+    if (!pos) {
+        /* No token found, return copy of original path */
+        expanded = malloc(strlen(path_template) + 1);
+        if (expanded) {
+            strcpy(expanded, path_template);
+        }
+        return expanded;
+    }
+    
+    /* Convert username to lowercase */
+    strncpy(username_lower, username, sizeof(username_lower) - 1);
+    username_lower[sizeof(username_lower) - 1] = '\0';
+    str_tolower(username_lower);
+    sanitize_filename(username_lower);
+    
+    username_len = strlen(username_lower);
+    prefix_len = pos - path_template;
+    suffix_len = strlen(pos + token_len);
+    
+    /* Allocate expanded path */
+    expanded = malloc(prefix_len + username_len + suffix_len + 1);
+    if (expanded) {
+        /* Copy prefix */
+        strncpy(expanded, path_template, prefix_len);
+        /* Copy username */
+        strcpy(expanded + prefix_len, username_lower);
+        /* Copy suffix */
+        strcpy(expanded + prefix_len + username_len, pos + token_len);
+    }
+    
+    return expanded;
 }
 
 /* Create maildir directory structure if it doesn't exist */
@@ -79,22 +157,6 @@ static ftn_error_t create_maildir_structure(const char* maildir_path) {
     }
     
     return FTN_OK;
-}
-
-/* Replace special characters in filename with underscores */
-static void sanitize_filename(char* filename) {
-    char* p;
-    
-    if (!filename) return;
-    
-    for (p = filename; *p; p++) {
-        if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' || 
-            *p == '?' || *p == '"' || *p == '<' || *p == '>' || 
-            *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
-            *p == '\r') {
-            *p = '_';
-        }
-    }
 }
 
 /* Generate filename for message */
@@ -160,52 +222,98 @@ static char* generate_filename(const ftn_message_t* message) {
 }
 
 /* Check if message already exists in maildir */
-static int message_exists(const char* maildir_path, const char* filename) {
+static int message_exists(const char* maildir_path, const char* filename, const ftn_message_t* message, const char* path_template) {
+    char* actual_maildir_path = NULL;
+    int exists = 0;
     char path[512];
     struct stat st;
     DIR* dir;
     struct dirent* entry;
     
+    /* Expand user path if needed */
+    if (path_template && strstr(path_template, "%USER%")) {
+        actual_maildir_path = expand_user_path(path_template, message->to_user);
+        if (!actual_maildir_path) {
+            return 0;
+        }
+    } else {
+        actual_maildir_path = malloc(strlen(maildir_path) + 1);
+        if (actual_maildir_path) {
+            strcpy(actual_maildir_path, maildir_path);
+        } else {
+            return 0;
+        }
+    }
+    
     /* Check in new directory */
-    snprintf(path, sizeof(path), "%s/new/%s", maildir_path, filename);
+    snprintf(path, sizeof(path), "%s/new/%s", actual_maildir_path, filename);
     if (stat(path, &st) == 0) {
-        return 1;
+        exists = 1;
+        goto cleanup;
     }
     
     /* Check in cur directory */
-    snprintf(path, sizeof(path), "%s/cur/%s", maildir_path, filename);
+    snprintf(path, sizeof(path), "%s/cur/%s", actual_maildir_path, filename);
     if (stat(path, &st) == 0) {
-        return 1;
+        exists = 1;
+        goto cleanup;
     }
     
     /* Also check for files with additional maildir flags */
-    snprintf(path, sizeof(path), "%s/cur", maildir_path);
+    snprintf(path, sizeof(path), "%s/cur", actual_maildir_path);
     dir = opendir(path);
     if (dir) {
         while ((entry = readdir(dir)) != NULL) {
             if (strncmp(entry->d_name, filename, strlen(filename)) == 0) {
                 /* Found a match (possibly with maildir flags) */
                 closedir(dir);
-                return 1;
+                exists = 1;
+                goto cleanup;
             }
         }
         closedir(dir);
     }
     
-    return 0;
+cleanup:
+    free(actual_maildir_path);
+    return exists;
 }
 
 /* Convert message to RFC822 and save to maildir */
 static ftn_error_t save_message_to_maildir(const ftn_message_t* message, 
                                           const char* maildir_path,
                                           const char* filename,
-                                          const char* domain) {
+                                          const char* domain,
+                                          const char* path_template) {
+    char* actual_maildir_path = NULL;
     rfc822_message_t* rfc_msg = NULL;
     char* rfc_text = NULL;
     char tmp_path[512];
     char final_path[512];
     FILE* fp;
     ftn_error_t error;
+    
+    /* Expand user path if needed */
+    if (path_template && strstr(path_template, "%USER%")) {
+        actual_maildir_path = expand_user_path(path_template, message->to_user);
+        if (!actual_maildir_path) {
+            fprintf(stderr, "Error: Failed to expand user path\n");
+            return FTN_ERROR_NOMEM;
+        }
+        /* Create maildir structure for user */
+        error = create_maildir_structure(actual_maildir_path);
+        if (error != FTN_OK) {
+            free(actual_maildir_path);
+            return error;
+        }
+    } else {
+        actual_maildir_path = malloc(strlen(maildir_path) + 1);
+        if (actual_maildir_path) {
+            strcpy(actual_maildir_path, maildir_path);
+        } else {
+            return FTN_ERROR_NOMEM;
+        }
+    }
     
     /* Convert to RFC822 */
     error = ftn_to_rfc822(message, domain, &rfc_msg);
@@ -223,12 +331,13 @@ static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
     }
     
     /* Write to temporary file first */
-    snprintf(tmp_path, sizeof(tmp_path), "%s/tmp/%s", maildir_path, filename);
+    snprintf(tmp_path, sizeof(tmp_path), "%s/tmp/%s", actual_maildir_path, filename);
     fp = fopen(tmp_path, "w");
     if (!fp) {
         fprintf(stderr, "Error: Failed to create temporary file: %s\n", tmp_path);
         free(rfc_text);
         rfc822_message_free(rfc_msg);
+        free(actual_maildir_path);
         return FTN_ERROR_FILE;
     }
     
@@ -238,23 +347,26 @@ static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
         remove(tmp_path);
         free(rfc_text);
         rfc822_message_free(rfc_msg);
+        free(actual_maildir_path);
         return FTN_ERROR_FILE;
     }
     
     fclose(fp);
     
     /* Move to new directory */
-    snprintf(final_path, sizeof(final_path), "%s/new/%s", maildir_path, filename);
+    snprintf(final_path, sizeof(final_path), "%s/new/%s", actual_maildir_path, filename);
     if (rename(tmp_path, final_path) != 0) {
         fprintf(stderr, "Error: Failed to move message to new directory\n");
         remove(tmp_path);
         free(rfc_text);
         rfc822_message_free(rfc_msg);
+        free(actual_maildir_path);
         return FTN_ERROR_FILE;
     }
     
     free(rfc_text);
     rfc822_message_free(rfc_msg);
+    free(actual_maildir_path);
     return FTN_OK;
 }
 
@@ -268,14 +380,18 @@ int main(int argc, char* argv[]) {
     char* filename;
     const char* domain = "fidonet.org";
     const char* maildir_path = NULL;
+    const char* user_filter = NULL;
     char** packet_files = NULL;
     int packet_count = 0;
     int arg_index;
+    int has_user_template = 0;
     
     /* Parse command line arguments */
     for (arg_index = 1; arg_index < argc; arg_index++) {
         if ((strcmp(argv[arg_index], "-d") == 0 || strcmp(argv[arg_index], "--domain") == 0) && arg_index + 1 < argc) {
             domain = argv[++arg_index];
+        } else if ((strcmp(argv[arg_index], "-u") == 0 || strcmp(argv[arg_index], "--user") == 0) && arg_index + 1 < argc) {
+            user_filter = argv[++arg_index];
         } else if (strcmp(argv[arg_index], "-h") == 0 || strcmp(argv[arg_index], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
@@ -315,6 +431,8 @@ int main(int argc, char* argv[]) {
     for (arg_index = 1; arg_index < argc; arg_index++) {
         if (strcmp(argv[arg_index], "-d") == 0 || strcmp(argv[arg_index], "--domain") == 0) {
             arg_index++; /* Skip domain value */
+        } else if (strcmp(argv[arg_index], "-u") == 0 || strcmp(argv[arg_index], "--user") == 0) {
+            arg_index++; /* Skip user value */
         } else if (strcmp(argv[arg_index], "-h") == 0 || strcmp(argv[arg_index], "--help") == 0) {
             /* Skip */
         } else if (strcmp(argv[arg_index], "--version") == 0) {
@@ -328,20 +446,28 @@ int main(int argc, char* argv[]) {
         }
     }
     
+    /* Check if maildir path contains %USER% template */
+    has_user_template = (strstr(maildir_path, "%USER%") != NULL);
+    
     printf("Converting FidoNet packets to maildir format...\n");
     printf("Maildir path: %s\n", maildir_path);
     printf("Domain: %s\n", domain);
+    if (user_filter) {
+        printf("User filter: %s\n", user_filter);
+    }
     printf("Packet files: %d\n", packet_count);
     for (j = 0; j < (size_t)packet_count; j++) {
         printf("  %s\n", packet_files[j]);
     }
     printf("\n");
     
-    /* Create maildir structure */
-    error = create_maildir_structure(maildir_path);
-    if (error != FTN_OK) {
-        free(packet_files);
-        return 1;
+    /* Create maildir structure only if no %USER% template */
+    if (!has_user_template) {
+        error = create_maildir_structure(maildir_path);
+        if (error != FTN_OK) {
+            free(packet_files);
+            return 1;
+        }
     }
     
     /* Process each packet file */
@@ -369,6 +495,13 @@ int main(int argc, char* argv[]) {
                 continue;
             }
             
+            /* Apply user filter if specified */
+            if (user_filter && strcasecmp(message->to_user, user_filter) != 0) {
+                printf("  Skipping message for user %s (filter: %s)\n", message->to_user, user_filter);
+                skipped_count++;
+                continue;
+            }
+            
             /* Generate filename */
             filename = generate_filename(message);
             if (!filename) {
@@ -379,7 +512,7 @@ int main(int argc, char* argv[]) {
             }
             
             /* Check if message already exists */
-            if (message_exists(maildir_path, filename)) {
+            if (message_exists(maildir_path, filename, message, has_user_template ? maildir_path : NULL)) {
                 printf("  Skipping existing message: %s\n", filename);
                 free(filename);
                 skipped_count++;
@@ -387,7 +520,7 @@ int main(int argc, char* argv[]) {
             }
             
             /* Save message to maildir */
-            error = save_message_to_maildir(message, maildir_path, filename, domain);
+            error = save_message_to_maildir(message, maildir_path, filename, domain, has_user_template ? maildir_path : NULL);
             if (error == FTN_OK) {
                 printf("  Imported message: %s\n", filename);
                 imported_count++;

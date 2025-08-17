@@ -10,6 +10,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <strings.h>
 
 static void print_version(void) {
     printf("msg2pkt (libFTN) %s\n", ftn_get_version());
@@ -24,6 +25,7 @@ static void print_usage(const char* program_name) {
     printf("\n");
     printf("Options:\n");
     printf("  -d, --domain <domain>  Domain name for RFC822 addresses (default: fidonet.org)\n");
+    printf("  -n, --network <name>   Network name to append to addresses (e.g., fsxNet)\n");
     printf("  -s, --sent <dir>       Move processed files to specified 'Sent' directory\n");
     printf("  -h, --help             Show this help message\n");
     printf("      --version          Show version information\n");
@@ -35,6 +37,8 @@ static void print_usage(const char* program_name) {
     printf("All messages will be placed into a single packet file with auto-generated name.\n");
     printf("Duplicate messages (based on Message-ID) will be skipped.\n");
     printf("From and To addresses are automatically parsed from message headers.\n");
+    printf("Only messages matching the specified domain are processed.\n");
+    printf("If --network is specified, it will be appended to FTN addresses (e.g., 21:1/141@fsxNet).\n");
 }
 
 /* Generate unique 8-character packet filename in specified directory */
@@ -236,6 +240,7 @@ int main(int argc, char* argv[]) {
     char* output_dir = NULL;
     char* sent_dir = NULL;
     const char* domain = "fidonet.org";
+    const char* network = NULL;
     char** input_files = NULL;
     int input_count = 0;
     int i;
@@ -261,6 +266,12 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             domain = argv[++i];
+        } else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--network") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: %s option requires a network argument\n", argv[i]);
+                return 1;
+            }
+            network = argv[++i];
         } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--sent") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "Error: %s option requires a directory argument\n", argv[i]);
@@ -325,6 +336,10 @@ int main(int argc, char* argv[]) {
     printf("Converting %d RFC822 files to FidoNet packet format...\n", input_count);
     printf("Output directory: %s\n", output_dir);
     printf("Output file: %s\n", output_filename);
+    printf("Domain: %s\n", domain);
+    if (network) {
+        printf("Network: %s\n", network);
+    }
     if (sent_dir) {
         printf("Sent directory: %s\n", sent_dir);
     }
@@ -379,12 +394,73 @@ int main(int argc, char* argv[]) {
             continue;
         }
         
-        /* Convert to FTN message - check if it's a USENET article */
+        /* Check if it's a USENET article */
         if (rfc822_message_get_header(rfc_msg, "Newsgroups")) {
-            /* This is a USENET article, use USENET conversion */
-            error = usenet_to_ftn(rfc_msg, "fidonet", &ftn_msg);
+            /* This is a USENET article */
+            const char* newsgroups = rfc822_message_get_header(rfc_msg, "Newsgroups");
+            const char* from_header = rfc822_message_get_header(rfc_msg, "From");
+            int domain_match = 0;
+            
+            /* Check if From address matches domain */
+            if (from_header && strstr(from_header, domain)) {
+                domain_match = 1;
+            }
+            
+            /* Check if newsgroup matches domain pattern */
+            if (newsgroups) {
+                /* Extract network name from newsgroup (e.g., fidonet.* or fsxnet.*) */
+                char network_prefix[64];
+                const char* dot_pos = strchr(newsgroups, '.');
+                if (dot_pos) {
+                    size_t prefix_len = dot_pos - newsgroups;
+                    if (prefix_len < sizeof(network_prefix) - 1) {
+                        strncpy(network_prefix, newsgroups, prefix_len);
+                        network_prefix[prefix_len] = '\0';
+                        /* Check if this matches our expected network */
+                        if (strstr(domain, network_prefix) || 
+                            (network && strcasecmp(network_prefix, network) == 0)) {
+                            domain_match = 1;
+                        }
+                    }
+                }
+            }
+            
+            if (!domain_match) {
+                printf("SKIPPED (network mismatch)\n");
+                rfc822_message_free(rfc_msg);
+                free(file_content);
+                skipped_count++;
+                continue;
+            }
+            
+            /* Use USENET conversion */
+            error = usenet_to_ftn(rfc_msg, network ? network : "fidonet", &ftn_msg);
         } else {
-            /* Regular RFC822 email, use standard conversion */
+            /* Regular RFC822 email */
+            const char* from_header = rfc822_message_get_header(rfc_msg, "From");
+            const char* to_header = rfc822_message_get_header(rfc_msg, "To");
+            int from_match = 0;
+            int to_match = 0;
+            
+            /* Check if From and To addresses match domain */
+            if (from_header && strstr(from_header, domain)) {
+                from_match = 1;
+            }
+            if (to_header && strstr(to_header, domain)) {
+                to_match = 1;
+            }
+            
+            if (!from_match || !to_match) {
+                printf("SKIPPED (domain mismatch: From=%s, To=%s)\n", 
+                       from_match ? "match" : "no match",
+                       to_match ? "match" : "no match");
+                rfc822_message_free(rfc_msg);
+                free(file_content);
+                skipped_count++;
+                continue;
+            }
+            
+            /* Use standard conversion */
             error = rfc822_to_ftn(rfc_msg, domain, &ftn_msg);
         }
         
@@ -394,6 +470,17 @@ int main(int argc, char* argv[]) {
             free(file_content);
             failed_count++;
             continue;
+        }
+        
+        /* If network is specified, append it to addresses */
+        if (network && ftn_msg) {
+            /* Append network to INTL if present */
+            if (ftn_msg->intl) {
+                char new_intl[256];
+                snprintf(new_intl, sizeof(new_intl), "%s@%s", ftn_msg->intl, network);
+                free(ftn_msg->intl);
+                ftn_msg->intl = strdup(new_intl);
+            }
         }
         
         /* Check if message ID already exists in output directory */
@@ -440,7 +527,7 @@ int main(int argc, char* argv[]) {
         /* Note: ftn_msg is now owned by the packet and will be freed with it */
     }
     
-    /* Save packet */
+    /* Save packet only if it contains messages */
     if (processed_count > 0) {
         printf("\nSaving packet with %d messages...\n", processed_count);
         error = ftn_packet_save(output_filename, packet);
@@ -453,7 +540,11 @@ int main(int argc, char* argv[]) {
         }
         printf("Packet saved successfully: %s\n", output_filename);
     } else {
-        printf("\nNo messages to save.\n");
+        printf("\nNo messages to save - no packet file created.\n");
+        /* Remove empty packet file if it was created */
+        if (output_filename) {
+            remove(output_filename);
+        }
     }
     
     printf("\nConversion complete:\n");
