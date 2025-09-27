@@ -1,0 +1,14 @@
+From: System Operator <21:1/141@fsxnet.nz>
+Newsgroups: fsxnet.general
+Subject: Test Echomail Message
+Date: Wed, 27 Sep 2025 10:30:00 +0000
+Message-ID: <echo456.789@21.1.141.fsxnet.nz>
+
+This is a sample echomail message for testing the USENET storage system.
+
+Echomail messages are converted to RFC1036 format and stored in newsgroup
+directories in the USENET spool format.
+
+This message would be stored in: /var/spool/news/fsxnet/general/1
+
+ * Origin: Test BBS (21:1/141)

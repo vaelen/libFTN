@@ -65,6 +65,7 @@ typedef struct {
 #include "ftn/version.h"
 #include "ftn/config.h"
 #include "ftn/router.h"
+#include "ftn/storage.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);

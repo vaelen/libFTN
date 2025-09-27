@@ -1,0 +1,13 @@
+From: John Doe <1:1/100@fidonet.org>
+To: Jane Smith <1:1/200@fidonet.org>
+Subject: Test Netmail Message
+Date: Wed, 27 Sep 2025 10:30:00 +0000
+Message-ID: <test123.456@1.1.100.fidonet.org>
+
+This is a sample netmail message for testing the storage system.
+
+It contains multiple lines of text to test the conversion and storage
+functionality properly.
+
+Best regards,
+John Doe
