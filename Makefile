@@ -14,11 +14,11 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
-TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_ftntoss.c
+TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_ftntoss.c $(TESTDIR)/test_dupecheck.c
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs
