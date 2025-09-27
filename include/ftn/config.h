@@ -26,6 +26,7 @@
 
 #include "ftn.h"
 
+/* Configuration section structures */
 typedef struct {
     char* name;
     char* sysop;
@@ -48,7 +49,8 @@ typedef struct {
 } ftn_mail_config_t;
 
 typedef struct {
-    char* name;
+    char* section_name;         /* Section name for lookup */
+    char* name;                 /* Display name from name field */
     char* domain;
     char* address_str;
     ftn_address_t address;
@@ -69,16 +71,51 @@ typedef struct {
     size_t network_count;
 } ftn_config_t;
 
+/* INI parsing structures (internal) */
+typedef struct {
+    char* key;
+    char* value;
+} ftn_config_pair_t;
+
+typedef struct {
+    char* name;
+    ftn_config_pair_t* pairs;
+    size_t pair_count;
+    size_t pair_capacity;
+} ftn_config_section_t;
+
+typedef struct {
+    ftn_config_section_t* sections;
+    size_t section_count;
+    size_t section_capacity;
+} ftn_config_ini_t;
+
+/* Main configuration functions */
 ftn_config_t* ftn_config_new(void);
 void ftn_config_free(ftn_config_t* config);
 ftn_error_t ftn_config_load(ftn_config_t* config, const char* filename);
 ftn_error_t ftn_config_validate(const ftn_config_t* config);
 
+/* Path templating functions */
 char* ftn_config_expand_path(const char* template, const char* user, const char* network);
 
+/* Accessor functions for configuration sections */
 const ftn_node_config_t* ftn_config_get_node(const ftn_config_t* config);
 const ftn_mail_config_t* ftn_config_get_mail(const ftn_config_t* config);
 const ftn_news_config_t* ftn_config_get_news(const ftn_config_t* config);
 const ftn_network_config_t* ftn_config_get_network(const ftn_config_t* config, const char* name);
+
+/* INI parsing functions (internal) */
+ftn_config_ini_t* ftn_config_ini_new(void);
+void ftn_config_ini_free(ftn_config_ini_t* ini);
+ftn_error_t ftn_config_ini_parse(ftn_config_ini_t* ini, const char* filename);
+const char* ftn_config_ini_get_value(const ftn_config_ini_t* ini, const char* section, const char* key);
+int ftn_config_ini_has_section(const ftn_config_ini_t* ini, const char* section);
+
+/* String utility functions */
+char* ftn_config_strdup(const char* str);
+void ftn_config_trim(char* str);
+int ftn_config_strcasecmp(const char* s1, const char* s2);
+char* ftn_config_parse_networks_list(const char* networks_str, size_t* count);
 
 #endif /* FTN_CONFIG_H */
