@@ -21,6 +21,7 @@
  * SOFTWARE.
  */
 
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +32,7 @@
 #include <time.h>
 #include <errno.h>
 #include <ctype.h>
+#include <dirent.h>
 
 #include "ftn.h"
 #include "ftn/storage.h"
@@ -325,6 +327,7 @@ ftn_error_t ftn_storage_store_news(ftn_storage_t* storage, const ftn_message_t* 
     char* usenet_text = NULL;
     char* article_dir = NULL;
     char* article_path = NULL;
+    char* lowercase_area = NULL;
     long article_num = 0;
     ftn_error_t result = FTN_OK;
 
@@ -336,9 +339,16 @@ ftn_error_t ftn_storage_store_news(ftn_storage_t* storage, const ftn_message_t* 
         return FTN_ERROR_INVALID;
     }
 
+    /* Convert area to lowercase for directory structure */
+    lowercase_area = ftn_storage_sanitize_area_name(area);
+    if (!lowercase_area) {
+        return FTN_ERROR_NOMEM;
+    }
+
     /* Generate newsgroup name */
     newsgroup = ftn_area_to_newsgroup(network, area);
     if (!newsgroup) {
+        free(lowercase_area);
         return FTN_ERROR_NOMEM;
     }
 
@@ -360,22 +370,13 @@ ftn_error_t ftn_storage_store_news(ftn_storage_t* storage, const ftn_message_t* 
         goto cleanup;
     }
 
-    /* Build article directory path */
-    article_dir = malloc(strlen(storage->news_root) + strlen(newsgroup) + 2);
+    /* Build article directory path using lowercase area name */
+    article_dir = malloc(strlen(storage->news_root) + strlen(network) + strlen(lowercase_area) + 4);
     if (!article_dir) {
         result = FTN_ERROR_NOMEM;
         goto cleanup;
     }
-    sprintf(article_dir, "%s/%s", storage->news_root, newsgroup);
-
-    /* Replace dots with slashes in newsgroup name for directory structure */
-    {
-        char* p = article_dir + strlen(storage->news_root) + 1;
-        while (*p) {
-            if (*p == '.') *p = '/';
-            p++;
-        }
-    }
+    sprintf(article_dir, "%s/%s/%s", storage->news_root, network, lowercase_area);
 
     /* Build article file path */
     article_path = malloc(strlen(article_dir) + 32);
@@ -399,6 +400,7 @@ cleanup:
     ftn_storage_safe_free(usenet_text);
     ftn_storage_safe_free(article_dir);
     ftn_storage_safe_free(article_path);
+    ftn_storage_safe_free(lowercase_area);
 
     return result;
 }
@@ -584,6 +586,168 @@ cleanup:
     return result;
 }
 
+/* Advanced filename generation (from pkt2mail.c) */
+ftn_error_t ftn_storage_generate_message_filename(const ftn_message_t* msg, char** filename) {
+    char* result = NULL;
+    char timestamp_str[32];
+    char from_addr[64];
+    char to_addr[64];
+    struct tm* tm_info;
+
+    if (!msg || !filename) {
+        return FTN_ERROR_INVALID_PARAMETER;
+    }
+
+    *filename = NULL;
+
+    /* Use MSGID if available */
+    if (msg->msgid && *msg->msgid) {
+        result = malloc(strlen(msg->msgid) + 1);
+        if (!result) {
+            return FTN_ERROR_NOMEM;
+        }
+
+        strcpy(result, msg->msgid);
+
+        /* Remove angle brackets if present */
+        if (result[0] == '<' && result[strlen(result)-1] == '>') {
+            memmove(result, result + 1, strlen(result) - 2);
+            result[strlen(result) - 2] = '\0';
+        }
+
+        /* Sanitize filename in place */
+        {
+            char* p;
+            for (p = result; *p; p++) {
+                if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' ||
+                    *p == '?' || *p == '"' || *p == '<' || *p == '>' ||
+                    *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
+                    *p == '\r') {
+                    *p = '_';
+                }
+            }
+        }
+        *filename = result;
+        return FTN_OK;
+    }
+
+    /* Generate FROM_TO_DATE filename */
+    ftn_address_to_string(&msg->orig_addr, from_addr, sizeof(from_addr));
+    ftn_address_to_string(&msg->dest_addr, to_addr, sizeof(to_addr));
+
+    if (msg->timestamp > 0) {
+        tm_info = gmtime(&msg->timestamp);
+        if (tm_info) {
+            snprintf(timestamp_str, sizeof(timestamp_str), "%04d%02d%02d_%02d%02d%02d",
+                     tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
+                     tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+        } else {
+            strcpy(timestamp_str, "unknown");
+        }
+    } else {
+        /* Use current time if no timestamp available */
+        time_t now = time(NULL);
+        tm_info = gmtime(&now);
+        if (tm_info) {
+            snprintf(timestamp_str, sizeof(timestamp_str), "%04d%02d%02d_%02d%02d%02d",
+                     tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
+                     tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
+        } else {
+            strcpy(timestamp_str, "unknown");
+        }
+    }
+
+    /* Allocate filename buffer */
+    result = malloc(strlen(from_addr) + strlen(to_addr) + strlen(timestamp_str) + 8);
+    if (!result) {
+        return FTN_ERROR_NOMEM;
+    }
+
+    snprintf(result, strlen(from_addr) + strlen(to_addr) + strlen(timestamp_str) + 8,
+             "%s_%s_%s", from_addr, to_addr, timestamp_str);
+
+    /* Sanitize filename in place */
+    {
+        char* p;
+        for (p = result; *p; p++) {
+            if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' ||
+                *p == '?' || *p == '"' || *p == '<' || *p == '>' ||
+                *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
+                *p == '\r') {
+                *p = '_';
+            }
+        }
+    }
+
+    *filename = result;
+    return FTN_OK;
+}
+
+/* Message duplicate detection (from pkt2mail.c) */
+ftn_error_t ftn_storage_message_exists(ftn_storage_t* storage, const char* maildir_path,
+                                      const ftn_message_t* msg, const char* filename, int* exists) {
+    char* actual_maildir_path = NULL;
+    char path[512];
+    struct stat st;
+    DIR* dir;
+    struct dirent* entry;
+    int result_exists = 0;
+    ftn_error_t result = FTN_OK;
+
+    if (!storage || !maildir_path || !msg || !filename || !exists) {
+        return FTN_ERROR_INVALID_PARAMETER;
+    }
+
+    *exists = 0;
+
+    /* Expand user path if needed */
+    if (strstr(maildir_path, "%USER%")) {
+        actual_maildir_path = ftn_storage_expand_path(maildir_path, msg->to_user, NULL);
+        if (!actual_maildir_path) {
+            return FTN_ERROR_NOMEM;
+        }
+    } else {
+        actual_maildir_path = ftn_storage_strdup(maildir_path);
+        if (!actual_maildir_path) {
+            return FTN_ERROR_NOMEM;
+        }
+    }
+
+    /* Check in new directory */
+    snprintf(path, sizeof(path), "%s/new/%s", actual_maildir_path, filename);
+    if (stat(path, &st) == 0) {
+        result_exists = 1;
+        goto cleanup;
+    }
+
+    /* Check in cur directory */
+    snprintf(path, sizeof(path), "%s/cur/%s", actual_maildir_path, filename);
+    if (stat(path, &st) == 0) {
+        result_exists = 1;
+        goto cleanup;
+    }
+
+    /* Also check for files with additional maildir flags */
+    snprintf(path, sizeof(path), "%s/cur", actual_maildir_path);
+    dir = opendir(path);
+    if (dir) {
+        while ((entry = readdir(dir)) != NULL) {
+            if (strncmp(entry->d_name, filename, strlen(filename)) == 0) {
+                /* Found a match (possibly with maildir flags) */
+                closedir(dir);
+                result_exists = 1;
+                goto cleanup;
+            }
+        }
+        closedir(dir);
+    }
+
+cleanup:
+    free(actual_maildir_path);
+    *exists = result_exists;
+    return result;
+}
+
 /* Conversion integration functions */
 ftn_error_t ftn_storage_convert_to_rfc822(const ftn_message_t* ftn_msg, const char* domain, char** rfc822_text) {
     rfc822_message_t* rfc_msg = NULL;
@@ -633,18 +797,135 @@ ftn_error_t ftn_storage_convert_to_usenet(const ftn_message_t* ftn_msg, const ch
     return result;
 }
 
-/* Placeholder implementations for remaining functions */
-ftn_error_t ftn_storage_update_active_file(ftn_storage_t* storage, const char* newsgroup, long article_num) {
-    /* TODO: Implement active file management */
-    (void)storage; (void)newsgroup; (void)article_num;
+/* Active file and article number management */
+ftn_error_t ftn_storage_get_next_article_number(ftn_storage_t* storage, const char* newsgroup, long* article_num) {
+    char area_path[512];
+    char* newsgroup_copy;
+    char* network_part;
+    char* area_part;
+    char* p;
+    DIR* dir;
+    struct dirent* entry;
+    long max_num = 0;
+    long num;
+
+    if (!storage || !newsgroup || !article_num || !storage->news_root) {
+        return FTN_ERROR_INVALID_PARAMETER;
+    }
+
+    /* Parse newsgroup name to extract network and area (format: network.area) */
+    newsgroup_copy = ftn_storage_strdup(newsgroup);
+    if (!newsgroup_copy) {
+        return FTN_ERROR_NOMEM;
+    }
+
+    network_part = newsgroup_copy;
+    area_part = strchr(newsgroup_copy, '.');
+    if (area_part) {
+        *area_part = '\0';
+        area_part++;
+    } else {
+        /* No dot found, assume entire string is area with default network */
+        area_part = newsgroup_copy;
+        network_part = "fidonet";
+    }
+
+    /* Construct area directory path: news_root/network/area */
+    snprintf(area_path, sizeof(area_path), "%s/%s/%s", storage->news_root, network_part, area_part);
+
+    /* Convert dots in area name to slashes for filesystem */
+    for (p = strstr(area_path, area_part); p && *p; p++) {
+        if (*p == '.') *p = '/';
+    }
+
+    dir = opendir(area_path);
+    if (!dir) {
+        /* Directory doesn't exist, start with 1 */
+        free(newsgroup_copy);
+        *article_num = 1;
+        return FTN_OK;
+    }
+
+    /* Find highest existing article number */
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] != '.' && sscanf(entry->d_name, "%ld", &num) == 1) {
+            if (num > max_num) {
+                max_num = num;
+            }
+        }
+    }
+
+    closedir(dir);
+    free(newsgroup_copy);
+    *article_num = max_num + 1;
     return FTN_OK;
 }
 
-ftn_error_t ftn_storage_get_next_article_number(ftn_storage_t* storage, const char* newsgroup, long* article_num) {
-    /* TODO: Implement article number tracking */
-    (void)storage; (void)newsgroup;
-    *article_num = 1;  /* Default to article 1 for now */
-    return FTN_OK;
+ftn_error_t ftn_storage_update_active_file(ftn_storage_t* storage, const char* newsgroup, long article_num) {
+    char temp_path[512];
+    FILE* active_fp = NULL;
+    FILE* temp_fp = NULL;
+    char line[1024];
+    char existing_newsgroup[256];
+    long existing_high, existing_low;
+    char existing_perm;
+    int found = 0;
+    ftn_error_t result = FTN_OK;
+
+    if (!storage || !newsgroup || !storage->active_file_path) {
+        return FTN_ERROR_INVALID_PARAMETER;
+    }
+
+    snprintf(temp_path, sizeof(temp_path), "%s.tmp", storage->active_file_path);
+
+    /* Open active file for reading (may not exist) */
+    active_fp = fopen(storage->active_file_path, "r");
+    temp_fp = fopen(temp_path, "w");
+    if (!temp_fp) {
+        if (active_fp) fclose(active_fp);
+        return FTN_ERROR_FILE;
+    }
+
+    /* Copy existing entries, updating the newsgroup if found */
+    if (active_fp) {
+        while (fgets(line, sizeof(line), active_fp)) {
+            if (sscanf(line, "%255s %ld %ld %c", existing_newsgroup, &existing_high, &existing_low, &existing_perm) == 4) {
+                if (strcmp(existing_newsgroup, newsgroup) == 0) {
+                    /* Update this newsgroup */
+                    if (article_num > existing_high) {
+                        existing_high = article_num;
+                    }
+                    if (existing_low == 0 || article_num < existing_low) {
+                        existing_low = article_num;
+                    }
+                    fprintf(temp_fp, "%s %ld %ld %c\n", newsgroup, existing_high, existing_low, existing_perm);
+                    found = 1;
+                } else {
+                    /* Copy existing entry */
+                    fputs(line, temp_fp);
+                }
+            } else {
+                /* Copy malformed line as-is */
+                fputs(line, temp_fp);
+            }
+        }
+        fclose(active_fp);
+    }
+
+    /* Add new newsgroup if not found */
+    if (!found) {
+        fprintf(temp_fp, "%s %ld %ld y\n", newsgroup, article_num, article_num);
+    }
+
+    fclose(temp_fp);
+
+    /* Replace active file with temp file */
+    if (rename(temp_path, storage->active_file_path) != 0) {
+        unlink(temp_path);
+        result = FTN_ERROR_FILE;
+    }
+
+    return result;
 }
 
 ftn_error_t ftn_storage_write_file_atomic(const char* path, const char* content, size_t length) {
@@ -734,6 +1015,81 @@ ftn_error_t ftn_message_list_clear(ftn_message_list_t* list) {
     return FTN_OK;
 }
 
+/* Path sanitization functions */
+char* ftn_storage_sanitize_filename(const char* input) {
+    char* result;
+    char* p;
+
+    if (!input) {
+        return NULL;
+    }
+
+    result = ftn_storage_strdup(input);
+    if (!result) {
+        return NULL;
+    }
+
+    /* Replace special characters with underscores */
+    for (p = result; *p; p++) {
+        if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' ||
+            *p == '?' || *p == '"' || *p == '<' || *p == '>' ||
+            *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
+            *p == '\r') {
+            *p = '_';
+        }
+    }
+
+    return result;
+}
+
+char* ftn_storage_sanitize_username(const char* username) {
+    char* result;
+    char* p;
+
+    if (!username) {
+        return NULL;
+    }
+
+    result = ftn_storage_strdup(username);
+    if (!result) {
+        return NULL;
+    }
+
+    /* Convert to lowercase and sanitize */
+    for (p = result; *p; p++) {
+        *p = tolower((unsigned char)*p);
+        if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' ||
+            *p == '?' || *p == '"' || *p == '<' || *p == '>' ||
+            *p == '|' || *p == ' ' || *p == '\t' || *p == '\n' ||
+            *p == '\r') {
+            *p = '_';
+        }
+    }
+
+    return result;
+}
+
+char* ftn_storage_sanitize_area_name(const char* area) {
+    char* result;
+    char* p;
+
+    if (!area) {
+        return NULL;
+    }
+
+    result = ftn_storage_strdup(area);
+    if (!result) {
+        return NULL;
+    }
+
+    /* Convert to lowercase */
+    for (p = result; *p; p++) {
+        *p = tolower((unsigned char)*p);
+    }
+
+    return result;
+}
+
 /* Additional placeholder implementations */
 ftn_error_t ftn_storage_scan_outbound_mail(ftn_storage_t* storage, const char* username,
                                           const char* network, ftn_message_list_t* messages) {
@@ -745,4 +1101,239 @@ ftn_error_t ftn_storage_scan_outbound_news(ftn_storage_t* storage, const char* a
                                           const char* network, ftn_message_list_t* messages) {
     (void)storage; (void)area; (void)network; (void)messages;
     return FTN_OK;  /* TODO: Implement */
+}
+
+/* Utility-compatible storage functions */
+ftn_error_t ftn_storage_store_mail_with_options(ftn_storage_t* storage, const ftn_message_t* msg,
+                                               const char* maildir_path, const char* domain,
+                                               const char* user_filter) {
+    ftn_maildir_file_t file_info;
+    char* rfc822_text;
+    FILE* file;
+    ftn_error_t error;
+    int exists;
+    char* filename;
+
+    (void)user_filter; /* Currently unused, reserved for future filtering */
+
+    if (!msg || !maildir_path || !domain) {
+        return FTN_ERROR_INVALID;
+    }
+
+    /* Create maildir structure if it doesn't exist */
+    error = ftn_storage_create_maildir(maildir_path);
+    if (error != FTN_OK) {
+        return error;
+    }
+
+    /* Generate filename based on message */
+    error = ftn_storage_generate_message_filename(msg, &filename);
+    if (error != FTN_OK) {
+        return error;
+    }
+
+    /* Check for duplicates */
+    error = ftn_storage_message_exists(storage, maildir_path, msg, filename, &exists);
+    if (error != FTN_OK) {
+        free(filename);
+        return error;
+    }
+
+    if (exists) {
+        free(filename);
+        return FTN_OK; /* Already exists, skip silently */
+    }
+
+    /* Generate maildir filename structure */
+    memset(&file_info, 0, sizeof(file_info));
+    file_info.filename = filename;
+
+    /* Build paths */
+    file_info.tmp_path = malloc(strlen(maildir_path) + strlen(FTN_MAILDIR_TMP) + strlen(filename) + 3);
+    file_info.new_path = malloc(strlen(maildir_path) + strlen(FTN_MAILDIR_NEW) + strlen(filename) + 3);
+
+    if (!file_info.tmp_path || !file_info.new_path) {
+        ftn_maildir_file_free(&file_info);
+        return FTN_ERROR_NOMEM;
+    }
+
+    sprintf(file_info.tmp_path, "%s/%s/%s", maildir_path, FTN_MAILDIR_TMP, filename);
+    sprintf(file_info.new_path, "%s/%s/%s", maildir_path, FTN_MAILDIR_NEW, filename);
+
+    /* Convert to RFC822 format */
+    error = ftn_storage_convert_to_rfc822(msg, domain, &rfc822_text);
+    if (error != FTN_OK) {
+        ftn_maildir_file_free(&file_info);
+        return error;
+    }
+
+    /* Write to tmp directory first */
+    file = fopen(file_info.tmp_path, "w");
+    if (!file) {
+        free(rfc822_text);
+        ftn_maildir_file_free(&file_info);
+        return FTN_ERROR_FILE;
+    }
+
+    if (fputs(rfc822_text, file) == EOF) {
+        fclose(file);
+        free(rfc822_text);
+        ftn_maildir_file_free(&file_info);
+        unlink(file_info.tmp_path);
+        return FTN_ERROR_FILE;
+    }
+
+    fclose(file);
+    free(rfc822_text);
+
+    /* Atomically move to new directory */
+    if (rename(file_info.tmp_path, file_info.new_path) != 0) {
+        unlink(file_info.tmp_path);
+        ftn_maildir_file_free(&file_info);
+        return FTN_ERROR_FILE;
+    }
+
+    ftn_maildir_file_free(&file_info);
+    return FTN_OK;
+}
+
+ftn_error_t ftn_storage_store_news_with_options(ftn_storage_t* storage, const ftn_message_t* msg,
+                                               const char* usenet_root, const char* network) {
+    char* area_path;
+    char* sanitized_area;
+    char* article_path;
+    char* usenet_text;
+    long article_num;
+    ftn_error_t error;
+    const char* area;
+
+    if (!msg || !usenet_root || !network) {
+        return FTN_ERROR_INVALID;
+    }
+
+    /* Get area from message */
+    area = msg->area;
+    if (!area || !*area) {
+        return FTN_ERROR_INVALID;
+    }
+
+    /* Sanitize area name */
+    sanitized_area = ftn_storage_sanitize_area_name(area);
+    if (!sanitized_area) {
+        return FTN_ERROR_NOMEM;
+    }
+
+    /* Build area directory path */
+    area_path = malloc(strlen(usenet_root) + strlen(network) + strlen(sanitized_area) + 3);
+    if (!area_path) {
+        free(sanitized_area);
+        return FTN_ERROR_NOMEM;
+    }
+    sprintf(area_path, "%s/%s/%s", usenet_root, network, sanitized_area);
+
+    /* Create directory structure */
+    error = ftn_storage_create_directory_recursive(area_path, FTN_STORAGE_DIR_MODE);
+    if (error != FTN_OK) {
+        free(sanitized_area);
+        free(area_path);
+        return error;
+    }
+
+    /* Get next article number */
+    error = ftn_storage_get_next_article_number(storage, area, &article_num);
+    if (error != FTN_OK) {
+        free(sanitized_area);
+        free(area_path);
+        return error;
+    }
+
+    /* Build article file path */
+    article_path = malloc(strlen(area_path) + 32);
+    if (!article_path) {
+        free(sanitized_area);
+        free(area_path);
+        return FTN_ERROR_NOMEM;
+    }
+    sprintf(article_path, "%s/%ld", area_path, article_num);
+
+    /* Convert to USENET format */
+    error = ftn_storage_convert_to_usenet(msg, network, &usenet_text);
+    if (error != FTN_OK) {
+        free(sanitized_area);
+        free(area_path);
+        free(article_path);
+        return error;
+    }
+
+    /* Write article file */
+    error = ftn_storage_write_file_atomic(article_path, usenet_text, strlen(usenet_text));
+    if (error != FTN_OK) {
+        free(sanitized_area);
+        free(area_path);
+        free(article_path);
+        free(usenet_text);
+        return error;
+    }
+
+    /* Update active file */
+    error = ftn_storage_update_active_file(storage, area, article_num);
+    if (error != FTN_OK) {
+        /* Article was written but active file update failed - not critical */
+    }
+
+    free(sanitized_area);
+    free(area_path);
+    free(article_path);
+    free(usenet_text);
+    return FTN_OK;
+}
+
+/* Simple storage functions that don't require full storage context */
+ftn_error_t ftn_storage_store_mail_simple(const ftn_message_t* msg, const char* maildir_path,
+                                         const char* domain, const char* user_filter) {
+    return ftn_storage_store_mail_with_options(NULL, msg, maildir_path, domain, user_filter);
+}
+
+ftn_error_t ftn_storage_store_news_simple(const ftn_message_t* msg, const char* usenet_root,
+                                         const char* network) {
+    return ftn_storage_store_news_with_options(NULL, msg, usenet_root, network);
+}
+
+/* Lock file operations for atomic updates */
+ftn_error_t ftn_storage_acquire_lock(const char* lock_path, int* lock_fd) {
+    int fd;
+    int retry_count = 0;
+    const int max_retries = 50;
+
+    if (!lock_path || !lock_fd) {
+        return FTN_ERROR_INVALID;
+    }
+
+    while (retry_count < max_retries) {
+        fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY, FTN_STORAGE_FILE_MODE);
+        if (fd >= 0) {
+            *lock_fd = fd;
+            return FTN_OK;
+        }
+
+        if (errno != EEXIST) {
+            return FTN_ERROR_FILE;
+        }
+
+        /* Lock file exists, wait a bit and retry */
+        sleep(1); /* 1 second - use sleep instead of usleep for C89 compatibility */
+        retry_count++;
+    }
+
+    return FTN_ERROR_FILE; /* Timeout acquiring lock */
+}
+
+ftn_error_t ftn_storage_release_lock(int lock_fd, const char* lock_path) {
+    if (lock_fd < 0 || !lock_path) {
+        return FTN_ERROR_INVALID;
+    }
+
+    close(lock_fd);
+    unlink(lock_path);
+    return FTN_OK;
 }

@@ -3,14 +3,15 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include <ftn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <sys/stat.h>
-#include <dirent.h>
 #include <ctype.h>
+
+#include "ftn.h"
+#include "ftn/packet.h"
+#include "ftn/storage.h"
+#include "ftn/version.h"
 
 static void print_version(void) {
     printf("pkt2mail (libFTN) %s\n", ftn_get_version());
@@ -112,186 +113,17 @@ static char* expand_user_path(const char* path_template, const char* username) {
     return expanded;
 }
 
-/* Create maildir directory structure if it doesn't exist */
-static ftn_error_t create_maildir_structure(const char* maildir_path) {
-    char path[512];
-    struct stat st;
-    
-    /* Create main maildir directory */
-    if (stat(maildir_path, &st) != 0) {
-        if (mkdir(maildir_path, 0755) != 0) {
-            fprintf(stderr, "Error: Failed to create maildir directory: %s\n", maildir_path);
-            return FTN_ERROR_FILE;
-        }
-    } else if (!S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "Error: %s exists but is not a directory\n", maildir_path);
-        return FTN_ERROR_FILE;
-    }
-    
-    /* Create tmp subdirectory */
-    snprintf(path, sizeof(path), "%s/tmp", maildir_path);
-    if (stat(path, &st) != 0) {
-        if (mkdir(path, 0755) != 0) {
-            fprintf(stderr, "Error: Failed to create tmp directory: %s\n", path);
-            return FTN_ERROR_FILE;
-        }
-    }
-    
-    /* Create new subdirectory */
-    snprintf(path, sizeof(path), "%s/new", maildir_path);
-    if (stat(path, &st) != 0) {
-        if (mkdir(path, 0755) != 0) {
-            fprintf(stderr, "Error: Failed to create new directory: %s\n", path);
-            return FTN_ERROR_FILE;
-        }
-    }
-    
-    /* Create cur subdirectory */
-    snprintf(path, sizeof(path), "%s/cur", maildir_path);
-    if (stat(path, &st) != 0) {
-        if (mkdir(path, 0755) != 0) {
-            fprintf(stderr, "Error: Failed to create cur directory: %s\n", path);
-            return FTN_ERROR_FILE;
-        }
-    }
-    
-    return FTN_OK;
-}
 
-/* Generate filename for message */
-static char* generate_filename(const ftn_message_t* message) {
-    char* filename;
-    char timestamp_str[32];
-    char from_addr[64];
-    char to_addr[64];
-    struct tm* tm_info;
-    
-    if (!message) return NULL;
-    
-    /* Use MSGID if available */
-    if (message->msgid && *message->msgid) {
-        filename = malloc(strlen(message->msgid) + 1);
-        if (filename) {
-            strlcpy(filename, message->msgid, strlen(message->msgid) + 1);
-            /* Remove angle brackets if present */
-            if (filename[0] == '<' && filename[strlen(filename)-1] == '>') {
-                memmove(filename, filename + 1, strlen(filename) - 2);
-                filename[strlen(filename) - 2] = '\0';
-            }
-            sanitize_filename(filename);
-        }
-        return filename;
-    }
-    
-    /* Generate FROM_TO_DATE filename */
-    ftn_address_to_string(&message->orig_addr, from_addr, sizeof(from_addr));
-    ftn_address_to_string(&message->dest_addr, to_addr, sizeof(to_addr));
-    
-    if (message->timestamp > 0) {
-        tm_info = gmtime(&message->timestamp);
-        if (tm_info) {
-            snprintf(timestamp_str, sizeof(timestamp_str), "%04d%02d%02d_%02d%02d%02d",
-                     tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
-                     tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
-        } else {
-            strlcpy(timestamp_str, "unknown", sizeof(timestamp_str));
-        }
-    } else {
-        /* Use current time if no timestamp available */
-        time_t now = time(NULL);
-        tm_info = gmtime(&now);
-        if (tm_info) {
-            snprintf(timestamp_str, sizeof(timestamp_str), "%04d%02d%02d_%02d%02d%02d",
-                     tm_info->tm_year + 1900, tm_info->tm_mon + 1, tm_info->tm_mday,
-                     tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec);
-        } else {
-            strlcpy(timestamp_str, "unknown", sizeof(timestamp_str));
-        }
-    }
-    
-    /* Allocate filename buffer */
-    filename = malloc(strlen(from_addr) + strlen(to_addr) + strlen(timestamp_str) + 8);
-    if (filename) {
-        snprintf(filename, strlen(from_addr) + strlen(to_addr) + strlen(timestamp_str) + 8,
-                 "%s_%s_%s", from_addr, to_addr, timestamp_str);
-        sanitize_filename(filename);
-    }
-    
-    return filename;
-}
 
-/* Check if message already exists in maildir */
-static int message_exists(const char* maildir_path, const char* filename, const ftn_message_t* message, const char* path_template) {
-    char* actual_maildir_path = NULL;
-    int exists = 0;
-    char path[512];
-    struct stat st;
-    DIR* dir;
-    struct dirent* entry;
-    
-    /* Expand user path if needed */
-    if (path_template && strstr(path_template, "%USER%")) {
-        actual_maildir_path = expand_user_path(path_template, message->to_user);
-        if (!actual_maildir_path) {
-            return 0;
-        }
-    } else {
-        actual_maildir_path = malloc(strlen(maildir_path) + 1);
-        if (actual_maildir_path) {
-            strlcpy(actual_maildir_path, maildir_path, strlen(maildir_path) + 1);
-        } else {
-            return 0;
-        }
-    }
-    
-    /* Check in new directory */
-    snprintf(path, sizeof(path), "%s/new/%s", actual_maildir_path, filename);
-    if (stat(path, &st) == 0) {
-        exists = 1;
-        goto cleanup;
-    }
-    
-    /* Check in cur directory */
-    snprintf(path, sizeof(path), "%s/cur/%s", actual_maildir_path, filename);
-    if (stat(path, &st) == 0) {
-        exists = 1;
-        goto cleanup;
-    }
-    
-    /* Also check for files with additional maildir flags */
-    snprintf(path, sizeof(path), "%s/cur", actual_maildir_path);
-    dir = opendir(path);
-    if (dir) {
-        while ((entry = readdir(dir)) != NULL) {
-            if (strncmp(entry->d_name, filename, strlen(filename)) == 0) {
-                /* Found a match (possibly with maildir flags) */
-                closedir(dir);
-                exists = 1;
-                goto cleanup;
-            }
-        }
-        closedir(dir);
-    }
-    
-cleanup:
-    free(actual_maildir_path);
-    return exists;
-}
 
 /* Convert message to RFC822 and save to maildir */
-static ftn_error_t save_message_to_maildir(const ftn_message_t* message, 
+static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
                                           const char* maildir_path,
-                                          const char* filename,
                                           const char* domain,
                                           const char* path_template) {
-    char* actual_maildir_path = NULL;
-    rfc822_message_t* rfc_msg = NULL;
-    char* rfc_text = NULL;
-    char tmp_path[512];
-    char final_path[512];
-    FILE* fp;
+    char* actual_maildir_path;
     ftn_error_t error;
-    
+
     /* Expand user path if needed */
     if (path_template && strstr(path_template, "%USER%")) {
         actual_maildir_path = expand_user_path(path_template, message->to_user);
@@ -299,12 +131,6 @@ static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
             fprintf(stderr, "Error: Failed to expand user path\n");
             return FTN_ERROR_NOMEM;
         }
-        /* Create maildir structure for user */
-        error = create_maildir_structure(actual_maildir_path);
-        if (error != FTN_OK) {
-            free(actual_maildir_path);
-            return error;
-        }
     } else {
         actual_maildir_path = malloc(strlen(maildir_path) + 1);
         if (actual_maildir_path) {
@@ -313,60 +139,12 @@ static ftn_error_t save_message_to_maildir(const ftn_message_t* message,
             return FTN_ERROR_NOMEM;
         }
     }
-    
-    /* Convert to RFC822 */
-    error = ftn_to_rfc822(message, domain, &rfc_msg);
-    if (error != FTN_OK) {
-        fprintf(stderr, "Error: Failed to convert message to RFC822\n");
-        return error;
-    }
-    
-    /* Generate RFC822 text */
-    rfc_text = rfc822_message_to_text(rfc_msg);
-    if (!rfc_text) {
-        fprintf(stderr, "Error: Failed to generate RFC822 text\n");
-        rfc822_message_free(rfc_msg);
-        return FTN_ERROR_NOMEM;
-    }
-    
-    /* Write to temporary file first */
-    snprintf(tmp_path, sizeof(tmp_path), "%s/tmp/%s", actual_maildir_path, filename);
-    fp = fopen(tmp_path, "w");
-    if (!fp) {
-        fprintf(stderr, "Error: Failed to create temporary file: %s\n", tmp_path);
-        free(rfc_text);
-        rfc822_message_free(rfc_msg);
-        free(actual_maildir_path);
-        return FTN_ERROR_FILE;
-    }
-    
-    if (fputs(rfc_text, fp) == EOF) {
-        fprintf(stderr, "Error: Failed to write message to file\n");
-        fclose(fp);
-        remove(tmp_path);
-        free(rfc_text);
-        rfc822_message_free(rfc_msg);
-        free(actual_maildir_path);
-        return FTN_ERROR_FILE;
-    }
-    
-    fclose(fp);
-    
-    /* Move to new directory */
-    snprintf(final_path, sizeof(final_path), "%s/new/%s", actual_maildir_path, filename);
-    if (rename(tmp_path, final_path) != 0) {
-        fprintf(stderr, "Error: Failed to move message to new directory\n");
-        remove(tmp_path);
-        free(rfc_text);
-        rfc822_message_free(rfc_msg);
-        free(actual_maildir_path);
-        return FTN_ERROR_FILE;
-    }
-    
-    free(rfc_text);
-    rfc822_message_free(rfc_msg);
+
+    /* Use storage library to store the mail */
+    error = ftn_storage_store_mail_simple(message, actual_maildir_path, domain, NULL);
+
     free(actual_maildir_path);
-    return FTN_OK;
+    return error;
 }
 
 int main(int argc, char* argv[]) {
@@ -376,7 +154,6 @@ int main(int argc, char* argv[]) {
     int imported_count = 0;
     int skipped_count = 0;
     int total_packets = 0;
-    char* filename;
     const char* domain = "fidonet.org";
     const char* maildir_path = NULL;
     const char* user_filter = NULL;
@@ -460,14 +237,7 @@ int main(int argc, char* argv[]) {
     }
     printf("\n");
     
-    /* Create maildir structure only if no %USER% template */
-    if (!has_user_template) {
-        error = create_maildir_structure(maildir_path);
-        if (error != FTN_OK) {
-            free(packet_files);
-            return 1;
-        }
-    }
+    /* Note: maildir structure creation is now handled by the storage library */
     
     /* Process each packet file */
     for (j = 0; j < (size_t)packet_count; j++) {
@@ -501,34 +271,15 @@ int main(int argc, char* argv[]) {
                 continue;
             }
             
-            /* Generate filename */
-            filename = generate_filename(message);
-            if (!filename) {
-                fprintf(stderr, "  Error: Failed to generate filename for message %lu\n", 
-                        (unsigned long)(i + 1));
-                skipped_count++;
-                continue;
-            }
-            
-            /* Check if message already exists */
-            if (message_exists(maildir_path, filename, message, has_user_template ? maildir_path : NULL)) {
-                printf("  Skipping existing message: %s\n", filename);
-                free(filename);
-                skipped_count++;
-                continue;
-            }
-            
-            /* Save message to maildir */
-            error = save_message_to_maildir(message, maildir_path, filename, domain, has_user_template ? maildir_path : NULL);
+            /* Save message to maildir (storage library handles filename generation and duplicate checking) */
+            error = save_message_to_maildir(message, maildir_path, domain, has_user_template ? maildir_path : NULL);
             if (error == FTN_OK) {
-                printf("  Imported message: %s\n", filename);
+                printf("  Imported message\n");
                 imported_count++;
             } else {
-                fprintf(stderr, "  Error: Failed to save message: %s\n", filename);
+                fprintf(stderr, "  Error: Failed to save message\n");
                 skipped_count++;
             }
-            
-            free(filename);
         }
         
         ftn_packet_free(packet);

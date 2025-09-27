@@ -128,6 +128,13 @@ ftn_error_t ftn_storage_create_directory_recursive(const char* path, mode_t mode
 ftn_error_t ftn_storage_get_unique_filename(const char* directory, const char* prefix,
                                            const char* suffix, char** filename);
 
+/* Advanced filename generation */
+ftn_error_t ftn_storage_generate_message_filename(const ftn_message_t* msg, char** filename);
+
+/* Message duplicate detection */
+ftn_error_t ftn_storage_message_exists(ftn_storage_t* storage, const char* maildir_path,
+                                      const ftn_message_t* msg, const char* filename, int* exists);
+
 /* Conversion integration */
 ftn_error_t ftn_storage_convert_to_rfc822(const ftn_message_t* ftn_msg, const char* domain,
                                          char** rfc822_text);
@@ -137,6 +144,21 @@ ftn_error_t ftn_storage_convert_from_rfc822(const char* rfc822_text, const char*
                                            ftn_message_t** ftn_msg);
 ftn_error_t ftn_storage_convert_from_usenet(const char* usenet_text, const char* network,
                                            ftn_message_t** ftn_msg);
+
+/* Utility-compatible storage functions */
+ftn_error_t ftn_storage_store_mail_with_options(ftn_storage_t* storage, const ftn_message_t* msg,
+                                               const char* maildir_path, const char* domain,
+                                               const char* user_filter);
+
+ftn_error_t ftn_storage_store_news_with_options(ftn_storage_t* storage, const ftn_message_t* msg,
+                                               const char* usenet_root, const char* network);
+
+/* Simple storage functions that don't require full storage context */
+ftn_error_t ftn_storage_store_mail_simple(const ftn_message_t* msg, const char* maildir_path,
+                                         const char* domain, const char* user_filter);
+
+ftn_error_t ftn_storage_store_news_simple(const ftn_message_t* msg, const char* usenet_root,
+                                         const char* network);
 
 /* Lock file operations for atomic updates */
 ftn_error_t ftn_storage_acquire_lock(const char* lock_path, int* lock_fd);

@@ -3,15 +3,14 @@
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
-#include <ftn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <ctype.h>
-#include <unistd.h>
+
+#include "ftn.h"
+#include "ftn/packet.h"
+#include "ftn/storage.h"
+#include "ftn/version.h"
 
 static void print_version(void) {
     printf("pkt2news (libFTN) %s\n", ftn_get_version());
@@ -38,224 +37,21 @@ static void print_usage(const char* program_name) {
     printf("Only Echomail messages are converted; Netmail messages are skipped.\n");
 }
 
-/* Get next article number for a newsgroup */
-static int get_next_article_number(const char* usenet_root, const char* network, const char* area) {
-    char area_path[512];
-    DIR* dir;
-    struct dirent* entry;
-    int max_num = 0;
-    int num;
-    
-    /* Construct area directory path */
-    snprintf(area_path, sizeof(area_path), "%s/%s/%s", usenet_root, network, area);
-    
-    dir = opendir(area_path);
-    if (!dir) {
-        /* Directory doesn't exist, start with 1 */
-        return 1;
-    }
-    
-    /* Find highest existing article number */
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_name[0] != '.' && sscanf(entry->d_name, "%d", &num) == 1) {
-            if (num > max_num) {
-                max_num = num;
-            }
-        }
-    }
-    
-    closedir(dir);
-    return max_num + 1;
-}
 
-/* Create directory recursively */
-static int create_directory_recursive(const char* path) {
-    char* path_copy;
-    char* dir_part;
-    char* save_ptr;
-    char current_path[512];
-    struct stat st;
-    
-    path_copy = malloc(strlen(path) + 1);
-    if (!path_copy) return -1;
-    strcpy(path_copy, path);
-    
-    current_path[0] = '\0';
-    
-    dir_part = strtok_r(path_copy, "/", &save_ptr);
-    while (dir_part) {
-        if (strlen(current_path) > 0) {
-            strcat(current_path, "/");
-        }
-        strcat(current_path, dir_part);
-        
-        /* Check if directory exists */
-        if (stat(current_path, &st) != 0) {
-            /* Create directory */
-            if (mkdir(current_path, 0755) != 0) {
-                free(path_copy);
-                return -1;
-            }
-        } else if (!S_ISDIR(st.st_mode)) {
-            /* Path exists but is not a directory */
-            free(path_copy);
-            return -1;
-        }
-        
-        dir_part = strtok_r(NULL, "/", &save_ptr);
-    }
-    
-    free(path_copy);
-    return 0;
-}
 
-/* Update active file */
-static int update_active_file(const char* usenet_root, const char* newsgroup, int article_num) {
-    char active_path[512];
-    char temp_path[512];
-    FILE* active_fp;
-    FILE* temp_fp;
-    char line[1024];
-    char existing_newsgroup[256];
-    int existing_high, existing_low;
-    char existing_perm;
-    int found = 0;
-    
-    snprintf(active_path, sizeof(active_path), "%s/active", usenet_root);
-    snprintf(temp_path, sizeof(temp_path), "%s/active.tmp", usenet_root);
-    
-    /* Open active file for reading (may not exist) */
-    active_fp = fopen(active_path, "r");
-    temp_fp = fopen(temp_path, "w");
-    if (!temp_fp) {
-        if (active_fp) fclose(active_fp);
-        return -1;
-    }
-    
-    /* Copy existing entries, updating the newsgroup if found */
-    if (active_fp) {
-        while (fgets(line, sizeof(line), active_fp)) {
-            if (sscanf(line, "%255s %d %d %c", existing_newsgroup, &existing_high, &existing_low, &existing_perm) == 4) {
-                if (strcmp(existing_newsgroup, newsgroup) == 0) {
-                    /* Update this newsgroup */
-                    if (article_num > existing_high) {
-                        existing_high = article_num;
-                    }
-                    if (existing_low == 0 || article_num < existing_low) {
-                        existing_low = article_num;
-                    }
-                    fprintf(temp_fp, "%s %d %d %c\n", newsgroup, existing_high, existing_low, existing_perm);
-                    found = 1;
-                } else {
-                    /* Copy existing entry */
-                    fputs(line, temp_fp);
-                }
-            } else {
-                /* Copy malformed line as-is */
-                fputs(line, temp_fp);
-            }
-        }
-        fclose(active_fp);
-    }
-    
-    /* Add new newsgroup if not found */
-    if (!found) {
-        fprintf(temp_fp, "%s %d %d y\n", newsgroup, article_num, article_num);
-    }
-    
-    fclose(temp_fp);
-    
-    /* Replace active file with temp file */
-    if (rename(temp_path, active_path) != 0) {
-        unlink(temp_path);
-        return -1;
-    }
-    
-    return 0;
-}
 
 /* Convert and save Echomail message as USENET article */
-static int save_usenet_article(const char* usenet_root, const char* network, 
+static int save_usenet_article(const char* usenet_root, const char* network,
                               const ftn_message_t* ftn_msg) {
-    rfc822_message_t* usenet_msg = NULL;
-    char* newsgroup;
-    char* article_text;
-    char area_path[512];
-    char article_path[512];
-    char* lowercase_area;
-    FILE* fp;
-    int article_num;
-    int result = 0;
-    size_t i;
-    
+    ftn_error_t error;
+
     if (!ftn_msg->area) {
         return 0; /* Skip messages without area */
     }
-    
-    /* Convert to lowercase area name */
-    lowercase_area = malloc(strlen(ftn_msg->area) + 1);
-    if (!lowercase_area) return -1;
-    
-    for (i = 0; i < strlen(ftn_msg->area); i++) {
-        lowercase_area[i] = tolower(ftn_msg->area[i]);
-    }
-    lowercase_area[strlen(ftn_msg->area)] = '\0';
-    
-    /* Create newsgroup name */
-    newsgroup = ftn_area_to_newsgroup(network, ftn_msg->area);
-    if (!newsgroup) {
-        free(lowercase_area);
-        return -1;
-    }
-    
-    /* Convert FTN message to USENET article */
-    if (ftn_to_usenet(ftn_msg, network, &usenet_msg) != FTN_OK) {
-        free(newsgroup);
-        free(lowercase_area);
-        return -1;
-    }
-    
-    /* Create area directory */
-    snprintf(area_path, sizeof(area_path), "%s/%s/%s", usenet_root, network, lowercase_area);
-    if (create_directory_recursive(area_path) != 0) {
-        rfc822_message_free(usenet_msg);
-        free(newsgroup);
-        free(lowercase_area);
-        return -1;
-    }
-    
-    /* Get next article number */
-    article_num = get_next_article_number(usenet_root, network, lowercase_area);
-    
-    /* Create article file */
-    snprintf(article_path, sizeof(article_path), "%s/%d", area_path, article_num);
-    fp = fopen(article_path, "w");
-    if (!fp) {
-        rfc822_message_free(usenet_msg);
-        free(newsgroup);
-        free(lowercase_area);
-        return -1;
-    }
-    
-    /* Generate article text */
-    article_text = rfc822_message_to_text(usenet_msg);
-    if (article_text) {
-        fprintf(fp, "%s", article_text);
-        free(article_text);
-    }
-    
-    fclose(fp);
-    
-    /* Update active file */
-    if (update_active_file(usenet_root, newsgroup, article_num) != 0) {
-        result = -1;
-    }
-    
-    rfc822_message_free(usenet_msg);
-    free(newsgroup);
-    free(lowercase_area);
-    
-    return result;
+
+    /* Use storage library to store the news article */
+    error = ftn_storage_store_news_simple(ftn_msg, usenet_root, network);
+    return (error == FTN_OK) ? 0 : -1;
 }
 
 int main(int argc, char* argv[]) {
