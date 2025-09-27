@@ -129,7 +129,6 @@ static int remove_pid_file(const char* pid_file);
 static void ftn_stats_init(void);
 static void ftn_stats_update(const ftn_processing_stats_t* stats);
 static void ftn_stats_dump(void);
-static void ftn_stats_reset(void);
 
 void print_usage(const char* program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -292,10 +291,7 @@ static void ftn_stats_dump(void) {
     logf_info("Average Cycle Time: %.2f seconds", global_stats.avg_cycle_time);
 }
 
-static void ftn_stats_reset(void) {
-    log_info("Resetting statistics");
-    ftn_stats_init();
-}
+
 
 /* Configuration reload */
 static void reload_configuration(void) {

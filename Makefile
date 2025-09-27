@@ -60,7 +60,7 @@ $(BINDIR)/%: $(SRCDIR)/%.c $(LIBRARY) | $(BINDIR)
 
 examples: $(EXAMPLE_BINARIES)
 
-test: $(TEST_BINARIES)
+test: examples $(TEST_BINARIES)
 	@echo "Running tests..."
 	@for test in $(TEST_BINARIES); do \
 		echo "Running $$test"; \

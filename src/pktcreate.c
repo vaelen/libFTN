@@ -42,7 +42,7 @@ static void print_usage(const char* program_name) {
     printf("    -F \"John Doe\" -T \"All\" \\\n");
     printf("    -s \"Test Echo\" -m \"Hello, everyone!\" test.pkt\n");
     printf("\nExample (with output directory):\n");
-    printf("  %s -o /tmp/outgoing -f 1:2/3 -t 1:4/5 -n \\\n", program_name);
+    printf("  %s -o outgoing -f 1:2/3 -t 1:4/5 -n \\\n", program_name);
     printf("    -F \"John Doe\" -T \"Jane Smith\" \\\n");
     printf("    -s \"Test Message\" -m \"Hello, World!\" test.pkt\n");
 }

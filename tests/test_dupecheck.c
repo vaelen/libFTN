@@ -222,7 +222,7 @@ void test_database_create_and_free(void) {
 
     test_start("database create and free");
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -239,7 +239,7 @@ void test_database_add_and_find(void) {
 
     test_start("database add and find");
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck_add.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck_add.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -285,7 +285,7 @@ void test_database_add_and_find(void) {
 
     ftn_message_free(msg);
     ftn_dupecheck_free(dupecheck);
-    unlink("/tmp/test_dupecheck_add.db");
+    unlink("tmp/test_dupecheck_add.db");
     test_pass();
 }
 
@@ -297,7 +297,7 @@ void test_database_save_and_load(void) {
     test_start("database save and load");
 
     /* Create first dupecheck and add a message */
-    dupecheck1 = ftn_dupecheck_new("/tmp/test_dupecheck_save.db");
+    dupecheck1 = ftn_dupecheck_new("tmp/test_dupecheck_save.db");
     if (!dupecheck1) {
         test_fail("Failed to create first dupecheck");
         return;
@@ -334,7 +334,7 @@ void test_database_save_and_load(void) {
     ftn_dupecheck_free(dupecheck1);
 
     /* Create second dupecheck and load the saved database */
-    dupecheck2 = ftn_dupecheck_new("/tmp/test_dupecheck_save.db");
+    dupecheck2 = ftn_dupecheck_new("tmp/test_dupecheck_save.db");
     if (!dupecheck2) {
         test_fail("Failed to create second dupecheck");
         ftn_message_free(msg);
@@ -358,7 +358,7 @@ void test_database_save_and_load(void) {
 
     ftn_message_free(msg);
     ftn_dupecheck_free(dupecheck2);
-    unlink("/tmp/test_dupecheck_save.db");
+    unlink("tmp/test_dupecheck_save.db");
     test_pass();
 }
 
@@ -370,7 +370,7 @@ void test_database_cleanup_old(void) {
 
     test_start("database cleanup old entries");
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck_cleanup.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck_cleanup.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -463,7 +463,7 @@ void test_database_cleanup_old(void) {
     ftn_message_free(msg1);
     ftn_message_free(msg2);
     ftn_dupecheck_free(dupecheck);
-    unlink("/tmp/test_dupecheck_cleanup.db");
+    unlink("tmp/test_dupecheck_cleanup.db");
     test_pass();
 }
 
@@ -474,7 +474,7 @@ void test_database_statistics(void) {
 
     test_start("database statistics");
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck_stats.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck_stats.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -534,7 +534,7 @@ void test_database_statistics(void) {
     ftn_message_free(msg1);
     ftn_message_free(msg2);
     ftn_dupecheck_free(dupecheck);
-    unlink("/tmp/test_dupecheck_stats.db");
+    unlink("tmp/test_dupecheck_stats.db");
     test_pass();
 }
 
@@ -551,7 +551,7 @@ void test_error_conditions(void) {
         return;
     }
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck_error.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck_error.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -586,7 +586,7 @@ void test_performance_large_dataset(void) {
 
     test_start("performance with large dataset");
 
-    dupecheck = ftn_dupecheck_new("/tmp/test_dupecheck_performance.db");
+    dupecheck = ftn_dupecheck_new("tmp/test_dupecheck_performance.db");
     if (!dupecheck) {
         test_fail("Failed to create dupecheck");
         return;
@@ -648,7 +648,7 @@ void test_performance_large_dataset(void) {
 
     ftn_message_free(msg);
     ftn_dupecheck_free(dupecheck);
-    unlink("/tmp/test_dupecheck_performance.db");
+    unlink("tmp/test_dupecheck_performance.db");
     test_pass();
 }
 

@@ -66,10 +66,12 @@ static void test_assert(int condition, const char* test_name) {
 }
 
 static void cleanup_test_dirs(void) {
-    system("rm -rf tmp/testnet");
-    system("rm -rf tmp/mail");
-    system("rm -rf tmp/news");
-    system("rm -f tmp/test_config.ini");
+    int status;
+    status = system("rm -rf tmp/testnet");
+    status = system("rm -rf tmp/mail");
+    status = system("rm -rf tmp/news");
+    status = system("rm -f tmp/test_config.ini");
+    (void)status;
 }
 
 static int setup_test_environment(void) {
@@ -268,6 +270,7 @@ static void test_directory_management(void) {
     struct stat st;
     ftn_packet_t* packet;
     ftn_error_t error;
+    int status;
 
     printf("Testing directory management...\n");
 
@@ -278,7 +281,8 @@ static void test_directory_management(void) {
         packet = create_test_packet();
         if (packet) {
             /* Create inbox directory manually first */
-            system("mkdir -p tmp/testnet/inbox");
+            status = system("mkdir -p tmp/testnet/inbox");
+            (void)status;
 
             error = ftn_packet_save("tmp/testnet/inbox/test.pkt", packet);
             test_assert(error == FTN_OK, "Packet saved to inbox");

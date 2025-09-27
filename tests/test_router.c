@@ -320,8 +320,6 @@ void test_address_validation(void) {
     ftn_config_t* config;
     ftn_dupecheck_t* dupecheck;
     ftn_router_t* router;
-    ftn_address_t valid_addr = {1, 1, 100, 0};
-    ftn_address_t invalid_addr = {999, 999, 999, 0};
 
     test_start("address validation");
 

@@ -41,16 +41,15 @@ int run_ftntoss_command(const char* args, char* output, size_t output_size) {
     char command[512];
     int status;
 
-    snprintf(command, sizeof(command), "./bin/ftntoss %s > /tmp/ftntoss_test_output 2>&1", args);
+    snprintf(command, sizeof(command), "./bin/ftntoss %s > tmp/ftntoss_test_output 2>&1", args);
 
     status = system(command);
 
     if (output && output_size > 0) {
-        FILE* fp = fopen("/tmp/ftntoss_test_output", "r");
+        FILE* fp = fopen("tmp/ftntoss_test_output", "r");
         if (fp) {
-            if (fgets(output, output_size, fp) == NULL) {
-                output[0] = '\0';
-            }
+            size_t bytes_read = fread(output, 1, output_size - 1, fp);
+            output[bytes_read] = '\0';
             fclose(fp);
         } else {
             output[0] = '\0';
@@ -219,19 +218,23 @@ void test_logging_functions(void) {
 
 void setup_test_directories(void) {
     /* Create test directories required by the test configuration */
-    system("mkdir -p /tmp/test_ftn/testnet/inbox");
-    system("mkdir -p /tmp/test_ftn/testnet/outbox");
-    system("mkdir -p /tmp/test_ftn/testnet/processed");
-    system("mkdir -p /tmp/test_ftn/testnet/bad");
-    system("mkdir -p /tmp/test_mail/testuser");
-    system("mkdir -p /tmp/test_news");
+    int status;
+    status = system("mkdir -p tmp/test_ftn/testnet/inbox");
+    status = system("mkdir -p tmp/test_ftn/testnet/outbox");
+    status = system("mkdir -p tmp/test_ftn/testnet/processed");
+    status = system("mkdir -p tmp/test_ftn/testnet/bad");
+    status = system("mkdir -p tmp/test_mail/testuser");
+    status = system("mkdir -p tmp/test_news");
+    (void)status;
 }
 
 void cleanup_test_directories(void) {
     /* Clean up test directories */
-    system("rm -rf /tmp/test_ftn");
-    system("rm -rf /tmp/test_mail");
-    system("rm -rf /tmp/test_news");
+    int status;
+    status = system("rm -rf tmp/test_ftn");
+    status = system("rm -rf tmp/test_mail");
+    status = system("rm -rf tmp/test_news");
+    (void)status;
 }
 
 int main(void) {

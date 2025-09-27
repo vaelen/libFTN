@@ -323,8 +323,8 @@ void test_maildir_filename_generation(void) {
     }
 
     /* Verify paths contain the right directories */
-    if (strstr(file_info.tmp_path, "/tmp/") == NULL) {
-        test_fail("tmp path doesn't contain /tmp/");
+    if (strstr(file_info.tmp_path, "tmp/") == NULL) {
+        test_fail("tmp path doesn't contain tmp/");
         ftn_maildir_file_free(&file_info);
         return;
     }
