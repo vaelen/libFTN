@@ -64,6 +64,7 @@ typedef struct {
 #include "ftn/rfc822.h"
 #include "ftn/version.h"
 #include "ftn/config.h"
+#include "ftn/router.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);
