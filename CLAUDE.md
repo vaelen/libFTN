@@ -1,40 +1,18 @@
-# CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## ftntoss specific information
 
-## Build Commands
+### Tosser architecture overview
+The `ftntoss` utility is a FidoNet message tosser that can run in single-shot or daemon mode. It is configured via an INI file that specifies the node, networks, mail, news, logging, and daemon settings.
 
-```bash
-# Build everything (library, utilities, and tests)
-make
+### Testing procedures
+The `ftntoss` utility has its own test suite in `tests/test_ftntoss.c`. It also has a set of integration test scripts in the `tests` directory (`run_integration_tests.sh`, `setup_test_env.sh`, `cleanup_test_env.sh`).
 
-# Build only the library
-make lib/libftn.a
+### Configuration management
+The configuration for `ftntoss` is handled by `src/config.c` and defined in `include/ftn/config.h`. The configuration includes sections for `[node]`, `[news]`, `[mail]`, `[logging]`, `[daemon]`, and one section for each network.
 
-# Build only utilities
-make examples
-
-# Run all tests
-make test
-
-# Run a specific test
-./bin/tests/test_rfc822
-
-# Clean build artifacts
-make clean
-```
-
-## Architecture Overview
-
-libFTN is a portable ANSI C (C89) library for FidoNet Technology Network (FTN) protocols with a layered architecture:
-
-### Core Library Structure
-
-- **`src/packet.c`** (1,032 lines) - Main packet parsing engine handling FTN binary formats and message structures
-- **`src/rfc822.c`** (1,358 lines) - Bidirectional conversion system between FTN and Internet message formats (RFC822/RFC1036)
-- **`src/nodelist.c`** (590 lines) - FidoNet nodelist parsing and network routing functionality
-- **`src/ftn.c`** - Core utilities including FTN address parsing and manipulation
-- **`src/compat.c`** - Compatibility layer for non-ANSI/non-POSIX environments
+### Debugging techniques
+The `ftntoss` utility uses the logging library in `src/log.c`. The log level can be set in the configuration file or with the `-v` command-line option. In daemon mode, it responds to `SIGUSR2` to toggle debug logging.
+mpatibility layer for non-ANSI/non-POSIX environments
 
 ### Key Data Structures
 
@@ -46,6 +24,7 @@ libFTN is a portable ANSI C (C89) library for FidoNet Technology Network (FTN) p
 
 All utilities are independent programs that link against the core library:
 
+- **`ftntoss`**: A powerful FidoNet message tosser with daemon support.
 - **Conversion tools**: `pkt2mail`, `pkt2news`, `msg2pkt` - Format conversion between FTN and Internet standards
 - **Packet tools**: `pktview`, `pktlist`, `pktcreate`, `pktbundle` - Packet inspection and manipulation
 - **Nodelist tools**: `nlview`, `nllookup` - Network directory operations

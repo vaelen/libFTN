@@ -454,6 +454,20 @@ void ftn_config_free(ftn_config_t* config) {
         free(config->mail);
     }
 
+    /* Free logging config */
+    if (config->logging) {
+        if (config->logging->level_str) free(config->logging->level_str);
+        if (config->logging->log_file) free(config->logging->log_file);
+        if (config->logging->ident) free(config->logging->ident);
+        free(config->logging);
+    }
+
+    /* Free daemon config */
+    if (config->daemon) {
+        if (config->daemon->pid_file) free(config->daemon->pid_file);
+        free(config->daemon);
+    }
+
     /* Free network configs */
     if (config->networks) {
         for (i = 0; i < config->network_count; i++) {
@@ -582,6 +596,90 @@ static ftn_error_t ftn_config_load_mail_section(ftn_config_t* config, const ftn_
     return FTN_OK;
 }
 
+static ftn_error_t ftn_config_load_logging_section(ftn_config_t* config, const ftn_config_ini_t* ini) {
+    const char* value;
+
+    if (!ftn_config_ini_has_section(ini, "logging")) {
+        return FTN_OK; /* Optional section */
+    }
+
+    config->logging = malloc(sizeof(ftn_logging_config_t));
+    if (!config->logging) return FTN_ERROR_NOMEM;
+    memset(config->logging, 0, sizeof(ftn_logging_config_t));
+
+    /* Set defaults */
+    config->logging->level = FTN_LOG_INFO;
+    config->logging->use_syslog = 0;
+
+    value = ftn_config_ini_get_value(ini, "logging", "level");
+    if (value) {
+        config->logging->level_str = ftn_config_strdup(value);
+        if (!config->logging->level_str) return FTN_ERROR_NOMEM;
+
+        if (ftn_config_strcasecmp(value, "debug") == 0) {
+            config->logging->level = FTN_LOG_DEBUG;
+        } else if (ftn_config_strcasecmp(value, "info") == 0) {
+            config->logging->level = FTN_LOG_INFO;
+        } else if (ftn_config_strcasecmp(value, "warning") == 0) {
+            config->logging->level = FTN_LOG_WARNING;
+        } else if (ftn_config_strcasecmp(value, "error") == 0) {
+            config->logging->level = FTN_LOG_ERROR;
+        } else if (ftn_config_strcasecmp(value, "critical") == 0) {
+            config->logging->level = FTN_LOG_CRITICAL;
+        }
+    }
+
+    value = ftn_config_ini_get_value(ini, "logging", "use_syslog");
+    if (value && (ftn_config_strcasecmp(value, "yes") == 0 || ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) {
+        config->logging->use_syslog = 1;
+    }
+
+    value = ftn_config_ini_get_value(ini, "logging", "log_file");
+    if (value) {
+        config->logging->log_file = ftn_config_strdup(value);
+        if (!config->logging->log_file) return FTN_ERROR_NOMEM;
+    }
+
+    value = ftn_config_ini_get_value(ini, "logging", "ident");
+    if (value) {
+        config->logging->ident = ftn_config_strdup(value);
+        if (!config->logging->ident) return FTN_ERROR_NOMEM;
+    }
+
+    return FTN_OK;
+}
+
+static ftn_error_t ftn_config_load_daemon_section(ftn_config_t* config, const ftn_config_ini_t* ini) {
+    const char* value;
+
+    if (!ftn_config_ini_has_section(ini, "daemon")) {
+        return FTN_OK; /* Optional section */
+    }
+
+    config->daemon = malloc(sizeof(ftn_daemon_config_t));
+    if (!config->daemon) return FTN_ERROR_NOMEM;
+    memset(config->daemon, 0, sizeof(ftn_daemon_config_t));
+
+    /* Set defaults */
+    config->daemon->sleep_interval = 60;
+
+    value = ftn_config_ini_get_value(ini, "daemon", "pid_file");
+    if (value) {
+        config->daemon->pid_file = ftn_config_strdup(value);
+        if (!config->daemon->pid_file) return FTN_ERROR_NOMEM;
+    }
+
+    value = ftn_config_ini_get_value(ini, "daemon", "sleep_interval");
+    if (value) {
+        config->daemon->sleep_interval = atoi(value);
+        if (config->daemon->sleep_interval <= 0) {
+            config->daemon->sleep_interval = 60;
+        }
+    }
+
+    return FTN_OK;
+}
+
 static ftn_error_t ftn_config_load_network_sections(ftn_config_t* config, const ftn_config_ini_t* ini) {
     size_t i, network_count = 0;
     const char* value;
@@ -590,7 +688,9 @@ static ftn_error_t ftn_config_load_network_sections(ftn_config_t* config, const 
     for (i = 0; i < ini->section_count; i++) {
         if (ftn_config_strcasecmp(ini->sections[i].name, "node") != 0 &&
             ftn_config_strcasecmp(ini->sections[i].name, "news") != 0 &&
-            ftn_config_strcasecmp(ini->sections[i].name, "mail") != 0) {
+            ftn_config_strcasecmp(ini->sections[i].name, "mail") != 0 &&
+            ftn_config_strcasecmp(ini->sections[i].name, "logging") != 0 &&
+            ftn_config_strcasecmp(ini->sections[i].name, "daemon") != 0) {
             network_count++;
         }
     }
@@ -609,7 +709,9 @@ static ftn_error_t ftn_config_load_network_sections(ftn_config_t* config, const 
     for (i = 0; i < ini->section_count; i++) {
         if (ftn_config_strcasecmp(ini->sections[i].name, "node") != 0 &&
             ftn_config_strcasecmp(ini->sections[i].name, "news") != 0 &&
-            ftn_config_strcasecmp(ini->sections[i].name, "mail") != 0) {
+            ftn_config_strcasecmp(ini->sections[i].name, "mail") != 0 &&
+            ftn_config_strcasecmp(ini->sections[i].name, "logging") != 0 &&
+            ftn_config_strcasecmp(ini->sections[i].name, "daemon") != 0) {
 
             ftn_network_config_t* net = &config->networks[config->network_count];
 
@@ -714,6 +816,18 @@ ftn_error_t ftn_config_load(ftn_config_t* config, const char* filename) {
     }
 
     result = ftn_config_load_mail_section(config, ini);
+    if (result != FTN_OK) {
+        ftn_config_ini_free(ini);
+        return result;
+    }
+
+    result = ftn_config_load_logging_section(config, ini);
+    if (result != FTN_OK) {
+        ftn_config_ini_free(ini);
+        return result;
+    }
+
+    result = ftn_config_load_daemon_section(config, ini);
     if (result != FTN_OK) {
         ftn_config_ini_free(ini);
         return result;

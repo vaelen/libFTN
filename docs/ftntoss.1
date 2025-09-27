@@ -1,0 +1,58 @@
+.TH FTNTOSS 1 "2025" "libFTN" "FidoNet Tools"
+.SH NAME
+ftntoss \- FidoNet Technology Network message tosser
+.SH SYNOPSIS
+.B ftntoss
+[\fIOPTION\fR]... \fB-c\fR \fICONFIG_FILE\fR
+.SH DESCRIPTION
+.B ftntoss
+is a FidoNet message tosser that processes incoming FTN packets, sorts messages, and distributes them to their destinations. It can deliver netmail to local user mailboxes, route echomail to newsgroups, and prepare mail for outbound delivery to other FTN nodes.
+
+ftntoss can run in two modes: single-shot or daemon mode. In single-shot mode, it processes all available mail and then exits. In daemon mode, it runs continuously in the background, processing mail at regular intervals.
+.SH OPTIONS
+.TP
+.B -c, --config FILE
+Specifies the path to the configuration file. This option is required.
+.TP
+.B -d, --daemon
+Runs ftntoss in continuous (daemon) mode.
+.TP
+.B -s, --sleep SECONDS
+Sets the sleep interval in seconds for daemon mode. This overrides the `sleep_interval` setting in the configuration file. Default is 60.
+.TP
+.B -v, --verbose
+Enables verbose logging to standard output. Overrides the log level in the configuration file to DEBUG.
+.TP
+.B -h, --help
+Displays a help message and exits.
+.TP
+.B --version
+Displays version information and exits.
+.SH CONFIGURATION
+The configuration is specified in an INI-style file. See
+.B ftntoss.ini
+(5) for details on the format and available options.
+.SH SIGNALS
+.TP
+.B SIGHUP
+Reloads the configuration file without stopping the daemon.
+.TP
+.B SIGTERM, SIGINT
+Causes the daemon to shut down gracefully.
+.TP
+.B SIGUSR1
+Dumps current processing statistics to the log.
+.TP
+.B SIGUSR2
+Toggles debug logging on or off.
+.SH FILES
+.TP
+.B /etc/ftntoss.ini
+Default location for the configuration file.
+.TP
+.B /var/run/ftntoss.pid
+Default location for the PID file in daemon mode.
+.SH SEE ALSO
+.BR pkt2mail (1),
+.BR pkt2news (1),
+.BR msg2pkt (1)

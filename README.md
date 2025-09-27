@@ -74,6 +74,23 @@ Example:
   ./bin/msg2pkt -s sent -d mynet.org outbound *.txt
 ```
 
+### ftntoss
+A powerful FidoNet message tosser that processes incoming FTN packets and distributes messages. It can run in a single-shot mode or as a daemon.
+
+```bash
+./bin/ftntoss [options]
+
+Options:
+  -c, --config FILE     Configuration file path (required)
+  -d, --daemon          Run in continuous (daemon) mode
+  -s, --sleep SECONDS   Sleep interval for daemon mode (default: 60)
+  -v, --verbose         Enable verbose logging
+  -h, --help            Show this help message
+      --version         Show version information
+```
+
+See `FTNTOSS.md` for more detailed documentation on configuration and usage.
+
 ### Other Utilities
 - **pktcreate**: Create new FidoNet packets with messages
 - **pktview**: Display packet contents in human-readable format

@@ -1,0 +1,15 @@
+[Unit]
+Description=FidoNet Tosser
+After=network.target
+
+[Service]
+Type=forking
+User=ftn
+Group=ftn
+ExecStart=/usr/local/bin/ftntoss -c /etc/ftntoss.ini -d
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/ftntoss.pid
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

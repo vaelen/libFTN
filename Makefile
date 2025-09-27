@@ -14,7 +14,7 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
@@ -71,8 +71,20 @@ test: $(TEST_BINARIES)
 clean:
 	rm -rf $(OBJDIR) $(LIBDIR) $(BINDIR) tmp/*
 
-install: $(LIBRARY)
-	@echo "Install target not implemented yet"
+install: all
+	@echo "Installing libFTN to $(DESTDIR)$(PREFIX)..."
+	install -d $(DESTDIR)$(PREFIX)/lib
+	install -d $(DESTDIR)$(PREFIX)/include/ftn
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -d $(DESTDIR)$(PREFIX)/share/man/man1
+	install -d $(DESTDIR)$(PREFIX)/share/doc/libftn
+	install -m 644 $(LIBRARY) $(DESTDIR)$(PREFIX)/lib/
+	install -m 644 include/ftn.h $(DESTDIR)$(PREFIX)/include/
+	install -m 644 include/ftn/*.h $(DESTDIR)$(PREFIX)/include/ftn/
+	install -m 755 $(EXAMPLE_BINARIES) $(DESTDIR)$(PREFIX)/bin/
+	install -m 644 docs/ftntoss.1 $(DESTDIR)$(PREFIX)/share/man/man1/
+	install -m 644 examples/ftntoss.ini $(DESTDIR)$(PREFIX)/share/doc/libftn/
+	@echo "Installation complete."
 
 .SUFFIXES:
 .SUFFIXES: .c .o

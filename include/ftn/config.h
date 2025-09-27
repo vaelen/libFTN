@@ -25,6 +25,7 @@
 #define FTN_CONFIG_H
 
 #include "ftn.h"
+#include "log_levels.h"
 
 /* Configuration section structures */
 typedef struct {
@@ -48,6 +49,21 @@ typedef struct {
     char* sent;
 } ftn_mail_config_t;
 
+
+
+typedef struct {
+    char* level_str;
+    ftn_log_level_t level;
+    int use_syslog;
+    char* log_file;
+    char* ident;
+} ftn_logging_config_t;
+
+typedef struct {
+    char* pid_file;
+    int sleep_interval;
+} ftn_daemon_config_t;
+
 typedef struct {
     char* section_name;         /* Section name for lookup */
     char* name;                 /* Display name from name field */
@@ -67,6 +83,8 @@ typedef struct {
     ftn_node_config_t* node;
     ftn_news_config_t* news;
     ftn_mail_config_t* mail;
+    ftn_logging_config_t* logging;
+    ftn_daemon_config_t* daemon;
     ftn_network_config_t* networks;
     size_t network_count;
 } ftn_config_t;

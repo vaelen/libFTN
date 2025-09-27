@@ -32,6 +32,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <syslog.h>
 
 #include "ftn.h"
 #include "ftn/config.h"
@@ -40,10 +42,19 @@
 #include "ftn/router.h"
 #include "ftn/storage.h"
 #include "ftn/dupecheck.h"
+#include "ftn/log.h"
 
+/* Global daemon state */
 static volatile sig_atomic_t shutdown_requested = 0;
 static volatile sig_atomic_t reload_requested = 0;
+static volatile sig_atomic_t dump_stats_requested = 0;
+static volatile sig_atomic_t toggle_debug_requested = 0;
 static int verbose_mode = 0;
+static int daemon_mode = 0;
+static const char* config_file_path = NULL;
+static ftn_config_t* global_config = NULL;
+
+static ftn_log_level_t current_log_level = FTN_LOG_INFO;
 
 /* Processing error types */
 typedef enum {
@@ -69,6 +80,22 @@ typedef struct {
     time_t processing_end_time;
 } ftn_processing_stats_t;
 
+/* Global statistics */
+typedef struct {
+    unsigned long packets_processed;
+    unsigned long messages_processed;
+    unsigned long duplicates_detected;
+    unsigned long messages_stored;
+    unsigned long messages_forwarded;
+    unsigned long errors_total;
+    time_t start_time;
+    time_t last_cycle_time;
+    double avg_cycle_time;
+    unsigned long cycles_completed;
+} ftn_global_stats_t;
+
+static ftn_global_stats_t global_stats = {0};
+
 /* Function prototypes */
 static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network);
 static ftn_error_t move_packet_to_processed(const char* packet_path, const char* processed_dir);
@@ -84,6 +111,22 @@ static int process_network_inbox_enhanced(const ftn_network_config_t* network, f
                                          ftn_processing_stats_t* stats);
 static void print_processing_stats(const ftn_processing_stats_t* stats);
 static void init_processing_stats(ftn_processing_stats_t* stats);
+static int run_single_shot(void);
+static int daemonize(void);
+static int setup_daemon_environment(void);
+static int run_daemon_loop(int sleep_interval);
+static void reload_configuration(void);
+static void setup_daemon_signals(void);
+static void handle_sighup(int sig);
+static void handle_sigterm(int sig);
+static void handle_sigusr1(int sig);
+static void handle_sigusr2(int sig);
+static int write_pid_file(const char* pid_file);
+static int remove_pid_file(const char* pid_file);
+static void ftn_stats_init(void);
+static void ftn_stats_update(const ftn_processing_stats_t* stats);
+static void ftn_stats_dump(void);
+static void ftn_stats_reset(void);
 
 void print_usage(const char* program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -107,88 +150,221 @@ void print_version(void) {
     printf("This is free software; see the source for copying conditions.\n");
 }
 
-void log_info(const char* format, ...) {
-    va_list args;
-    time_t now;
-    struct tm* tm_info;
-    char timestamp[32];
+/* Daemon mode functions */
+static int daemonize(void) {
+    pid_t pid;
 
-    time(&now);
-    tm_info = localtime(&now);
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+    /* Fork off the parent process */
+    pid = fork();
+    if (pid < 0) {
+        return -1; /* Fork failed */
+    }
+    if (pid > 0) {
+        exit(EXIT_SUCCESS); /* Success: let the parent terminate */
+    }
 
-    printf("[%s] INFO: ", timestamp);
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-    printf("\n");
-    fflush(stdout);
+    /* On success: The child process becomes session leader */
+    if (setsid() < 0) {
+        return -1;
+    }
+
+    /* Fork again, allowing the parent of this second child to terminate */
+    signal(SIGHUP, SIG_IGN);
+    pid = fork();
+    if (pid < 0) {
+        return -1;
+    }
+    if (pid > 0) {
+        exit(EXIT_SUCCESS);
+    }
+
+    /* Set new file permissions */
+    umask(0);
+
+    /* Change the working directory to the root */
+    if (chdir("/") < 0) {
+        return -1;
+    }
+
+    /* Close all open file descriptors */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    /* Redirect standard files to /dev/null */
+    if (open("/dev/null", O_RDONLY) < 0) {
+        return -1;
+    }
+    if (open("/dev/null", O_WRONLY) < 0) {
+        return -1;
+    }
+    if (open("/dev/null", O_RDWR) < 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
-void log_error(const char* format, ...) {
-    va_list args;
-    time_t now;
-    struct tm* tm_info;
-    char timestamp[32];
-
-    time(&now);
-    tm_info = localtime(&now);
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-
-    fprintf(stderr, "[%s] ERROR: ", timestamp);
-    va_start(args, format);
-    vfprintf(stderr, format, args);
-    va_end(args);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+static int setup_daemon_environment(void) {
+    if (daemonize() != 0) {
+        log_critical("%s", "Failed to daemonize process");
+        return -1;
+    }
+    return 0;
 }
 
-void log_debug(const char* format, ...) {
-    va_list args;
-    time_t now;
-    struct tm* tm_info;
-    char timestamp[32];
+static int write_pid_file(const char* pid_file) {
+    FILE* f;
 
-    if (!verbose_mode) {
+    if (!pid_file) {
+        return 0; /* Not an error if no pid file is configured */
+    }
+
+    f = fopen(pid_file, "w");
+    if (!f) {
+        log_error("Failed to open PID file for writing: %s", pid_file);
+        return -1;
+    }
+
+    fprintf(f, "%d\n", getpid());
+    fclose(f);
+    return 0;
+}
+
+static int remove_pid_file(const char* pid_file) {
+    if (!pid_file) {
+        return 0;
+    }
+
+    if (unlink(pid_file) != 0) {
+        log_warning("Failed to remove PID file: %s", pid_file);
+        return -1;
+    }
+    return 0;
+}
+
+/* Statistics functions */
+static void ftn_stats_init(void) {
+    memset(&global_stats, 0, sizeof(ftn_global_stats_t));
+    global_stats.start_time = time(NULL);
+}
+
+static void ftn_stats_update(const ftn_processing_stats_t* stats) {
+    double total_time;
+    if (!stats) return;
+
+    global_stats.packets_processed += stats->packets_processed;
+    global_stats.messages_processed += stats->messages_processed;
+    global_stats.duplicates_detected += stats->duplicates_found;
+    global_stats.messages_stored += stats->messages_stored;
+    global_stats.messages_forwarded += stats->messages_forwarded;
+    global_stats.errors_total += stats->errors_encountered;
+
+    global_stats.last_cycle_time = time(NULL);
+    global_stats.cycles_completed++;
+
+    total_time = difftime(global_stats.last_cycle_time, global_stats.start_time);
+    if (global_stats.cycles_completed > 0) {
+        global_stats.avg_cycle_time = total_time / global_stats.cycles_completed;
+    }
+}
+
+static void ftn_stats_dump(void) {
+    time_t uptime = time(NULL) - global_stats.start_time;
+    char uptime_str[128];
+
+    snprintf(uptime_str, sizeof(uptime_str), "%ldd %ldh %ldm %lds",
+             uptime / 86400, (uptime % 86400) / 3600,
+             (uptime % 3600) / 60, uptime % 60);
+
+    log_info("%s", "=== FTN Tosser Statistics ===");
+    log_info("Uptime: %s", uptime_str);
+    log_info("Packets Processed: %lu", global_stats.packets_processed);
+    log_info("Messages Processed: %lu", global_stats.messages_processed);
+    log_info("Duplicates Detected: %lu", global_stats.duplicates_detected);
+    log_info("Messages Stored: %lu", global_stats.messages_stored);
+    log_info("Messages Forwarded: %lu", global_stats.messages_forwarded);
+    log_info("Total Errors: %lu", global_stats.errors_total);
+    log_info("Processing Cycles: %lu", global_stats.cycles_completed);
+    log_info("Average Cycle Time: %.2f seconds", global_stats.avg_cycle_time);
+}
+
+static void ftn_stats_reset(void) {
+    log_info("%s", "Resetting statistics");
+    ftn_stats_init();
+}
+
+/* Configuration reload */
+static void reload_configuration(void) {
+    ftn_config_t* new_config = NULL;
+
+    log_info("Reloading configuration from: %s", config_file_path);
+
+    new_config = ftn_config_new();
+    if (!new_config) {
+        log_error("%s", "Failed to allocate memory for new configuration");
         return;
     }
 
-    time(&now);
-    tm_info = localtime(&now);
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-
-    printf("[%s] DEBUG: ", timestamp);
-    va_start(args, format);
-    vprintf(format, args);
-    va_end(args);
-    printf("\n");
-    fflush(stdout);
-}
-
-void signal_handler(int sig) {
-    switch (sig) {
-        case SIGTERM:
-        case SIGINT:
-            shutdown_requested = 1;
-            log_info("Shutdown signal received, exiting gracefully");
-            break;
-        case SIGHUP:
-            reload_requested = 1;
-            log_info("Reload signal received, will reload configuration");
-            break;
-        case SIGPIPE:
-            break;
-        default:
-            log_debug("Received signal %d", sig);
-            break;
+    if (ftn_config_load(new_config, config_file_path) != FTN_OK) {
+        log_error("%s", "Failed to reload configuration, keeping current config");
+        ftn_config_free(new_config);
+        return;
     }
+
+    if (ftn_config_validate(new_config) != FTN_OK) {
+        log_error("%s", "New configuration is invalid, keeping current config");
+        ftn_config_free(new_config);
+        return;
+    }
+
+    /* This is a simple swap. In a multi-threaded environment, this would need a lock. */
+    ftn_config_free(global_config);
+    global_config = new_config;
+
+    /* Re-initialize logging with potentially new settings */
+    if (global_config->logging) {
+        ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
+        int use_syslog = global_config->logging->use_syslog;
+        ftn_log_init(log_level, use_syslog, global_config->logging->ident);
+    }
+
+    log_info("%s", "Configuration reloaded successfully");
 }
 
-void setup_signal_handlers(void) {
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
-    signal(SIGHUP, signal_handler);
-    signal(SIGPIPE, SIG_IGN);
+
+/* Signal handling for daemon mode */
+static void handle_sigterm(int sig) {
+    (void)sig;
+    shutdown_requested = 1;
+    log_info("%s", "Shutdown signal received, exiting gracefully");
+}
+
+static void handle_sighup(int sig) {
+    (void)sig;
+    reload_requested = 1;
+    log_info("%s", "Reload signal received, will reload configuration");
+}
+
+static void handle_sigusr1(int sig) {
+    (void)sig;
+    dump_stats_requested = 1;
+    log_info("%s", "Statistics dump requested");
+}
+
+static void handle_sigusr2(int sig) {
+    (void)sig;
+    toggle_debug_requested = 1;
+    log_info("%s", "Debug mode toggle requested");
+}
+
+static void setup_daemon_signals(void) {
+    signal(SIGTERM, handle_sigterm);
+    signal(SIGINT, handle_sigterm); /* Treat INT as TERM */
+    signal(SIGHUP, handle_sighup);
+    signal(SIGUSR1, handle_sigusr1);
+    signal(SIGUSR2, handle_sigusr2);
+    signal(SIGPIPE, SIG_IGN); /* Ignore broken pipes */
 }
 
 int process_inbox(const ftn_config_t* config) {
@@ -201,7 +377,7 @@ int process_inbox(const ftn_config_t* config) {
     size_t i;
 
     if (!config) {
-        log_error("Invalid configuration provided to process_inbox");
+        log_error("%s", "Invalid configuration provided to process_inbox");
         return -1;
     }
 
@@ -211,12 +387,12 @@ int process_inbox(const ftn_config_t* config) {
     /* Initialize storage first */
     storage = ftn_storage_new(config);
     if (!storage) {
-        log_error("Failed to initialize storage");
+        log_error("%s", "Failed to initialize storage");
         return -1;
     }
 
     if (ftn_storage_initialize(storage) != FTN_OK) {
-        log_error("Failed to initialize storage");
+        log_error("%s", "Failed to initialize storage");
         ftn_storage_free(storage);
         return -1;
     }
@@ -230,13 +406,13 @@ int process_inbox(const ftn_config_t* config) {
     }
 
     if (!dupecheck) {
-        log_error("Failed to initialize duplicate checker");
+        log_error("%s", "Failed to initialize duplicate checker");
         ftn_storage_free(storage);
         return -1;
     }
 
     if (ftn_dupecheck_load(dupecheck) != FTN_OK) {
-        log_error("Failed to load duplicate database");
+        log_error("%s", "Failed to load duplicate database");
         result = -1;
         goto cleanup;
     }
@@ -244,7 +420,7 @@ int process_inbox(const ftn_config_t* config) {
     /* Initialize router with config and dupecheck */
     router = ftn_router_new(config, dupecheck);
     if (!router) {
-        log_error("Failed to initialize router");
+        log_error("%s", "Failed to initialize router");
         result = -1;
         goto cleanup;
     }
@@ -273,43 +449,58 @@ cleanup:
 }
 
 
-int run_single_shot(const ftn_config_t* config) {
-    log_info("Running in single-shot mode");
+int run_single_shot(void) {
+    log_info("%s", "Running in single-shot mode");
 
-    if (process_inbox(config) != 0) {
-        log_error("Error processing inbox");
+    if (process_inbox(global_config) != 0) {
+        log_error("%s", "Error processing inbox");
         return -1;
     }
 
-    log_info("Single-shot processing completed");
+    log_info("%s", "Single-shot processing completed");
     return 0;
 }
 
-int run_continuous(const ftn_config_t* config, int sleep_interval) {
+static int run_daemon_loop(int sleep_interval) {
     int i;
-
-    log_info("Running in continuous mode (sleep interval: %d seconds)", sleep_interval);
+    ftn_stats_init();
 
     while (!shutdown_requested) {
-        log_debug("Starting processing cycle");
+        ftn_processing_stats_t stats;
+        init_processing_stats(&stats);
 
-        if (process_inbox(config) != 0) {
-            log_error("Error processing inbox, continuing");
+        log_debug("%s", "Starting processing cycle");
+
+        if (process_inbox(global_config) != 0) {
+            log_error("%s", "Error processing inbox, continuing");
         }
 
+        /* TODO: Implement process_outbound(global_config) */
+
+        stats.processing_end_time = time(NULL);
+        ftn_stats_update(&stats);
+
         if (reload_requested) {
-            log_info("Configuration reload requested (not implemented yet)");
+            reload_configuration();
             reload_requested = 0;
+        }
+        if (dump_stats_requested) {
+            ftn_stats_dump();
+            dump_stats_requested = 0;
+        }
+        if (toggle_debug_requested) {
+            current_log_level = (current_log_level == FTN_LOG_DEBUG) ? FTN_LOG_INFO : FTN_LOG_DEBUG;
+            log_info("Log level changed to %s", current_log_level == FTN_LOG_DEBUG ? "DEBUG" : "INFO");
+            toggle_debug_requested = 0;
         }
 
         log_debug("Processing cycle complete, sleeping for %d seconds", sleep_interval);
-
         for (i = 0; i < sleep_interval && !shutdown_requested; i++) {
             sleep(1);
         }
     }
 
-    log_info("Continuous mode shutting down");
+    log_info("%s", "Daemon loop shutting down");
     return 0;
 }
 
@@ -329,7 +520,7 @@ static void print_processing_stats(const ftn_processing_stats_t* stats) {
 
     elapsed_time = difftime(stats->processing_end_time, stats->processing_start_time);
 
-    log_info("Processing Statistics:");
+    log_info("%s", "Processing Statistics:");
     log_info("  Packets processed: %lu", (unsigned long)stats->packets_processed);
     log_info("  Messages processed: %lu", (unsigned long)stats->messages_processed);
     log_info("  Duplicates found: %lu", (unsigned long)stats->duplicates_found);
@@ -465,7 +656,7 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
     /* Check for duplicates */
     error = ftn_dupecheck_is_duplicate(dupecheck, msg, &is_duplicate);
     if (error != FTN_OK) {
-        log_error("Duplicate check failed for message");
+        log_error("%s", "Duplicate check failed for message");
         stats->errors_encountered++;
         return FTN_ERROR_INVALID;
     }
@@ -479,14 +670,14 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
     /* Add to duplicate database */
     error = ftn_dupecheck_add_message(dupecheck, msg);
     if (error != FTN_OK) {
-        log_error("Failed to add message to duplicate database");
+        log_error("%s", "Failed to add message to duplicate database");
         /* Continue processing - this is not fatal */
     }
 
     /* Determine routing */
     error = ftn_router_route_message(router, msg, &decision);
     if (error != FTN_OK) {
-        log_error("Routing failed for message");
+        log_error("%s", "Routing failed for message");
         stats->errors_encountered++;
         return FTN_ERROR_INVALID;
     }
@@ -602,7 +793,7 @@ static int process_network_inbox_enhanced(const ftn_network_config_t* network, f
     int result = 0;
 
     if (!network || !router || !storage || !dupecheck || !stats) {
-        log_error("Invalid parameters to process_network_inbox_enhanced");
+        log_error("%s", "Invalid parameters to process_network_inbox_enhanced");
         return -1;
     }
 
@@ -651,17 +842,15 @@ static int process_network_inbox_enhanced(const ftn_network_config_t* network, f
 }
 
 int main(int argc, char* argv[]) {
-    const char* config_file = NULL;
-    int daemon_mode = 0;
     int sleep_interval = 60;
-    ftn_config_t* config = NULL;
     int result = 0;
     int i;
 
+    /* Parse command-line arguments */
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
             if (i + 1 < argc) {
-                config_file = argv[++i];
+                config_file_path = argv[++i];
             } else {
                 fprintf(stderr, "Error: %s requires an argument\n", argv[i]);
                 return 1;
@@ -694,47 +883,90 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (!config_file) {
+    if (!config_file_path) {
         fprintf(stderr, "Error: Configuration file is required\n");
         print_usage(argv[0]);
         return 1;
     }
 
-    log_info("FTN Tosser starting up");
-    log_debug("Configuration file: %s", config_file);
+    /* Initialize logging early */
+    ftn_log_init(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "ftntoss");
+
+    log_info("%s", "FTN Tosser starting up");
+    log_debug("Configuration file: %s", config_file_path);
     log_debug("Daemon mode: %s", daemon_mode ? "yes" : "no");
     log_debug("Verbose mode: %s", verbose_mode ? "yes" : "no");
 
-    config = ftn_config_new();
-    if (!config) {
-        log_error("Failed to allocate configuration structure");
+    /* Load configuration */
+    global_config = ftn_config_new();
+    if (!global_config) {
+        log_critical("%s", "Failed to allocate configuration structure");
+        return 1;
+    }
+    if (ftn_config_load(global_config, config_file_path) != FTN_OK) {
+        log_critical("Failed to load configuration from: %s", config_file_path);
+        ftn_config_free(global_config);
+        return 1;
+    }
+    if (ftn_config_validate(global_config) != FTN_OK) {
+        log_critical("%s", "Configuration validation failed");
+        ftn_config_free(global_config);
         return 1;
     }
 
-    if (ftn_config_load(config, config_file) != FTN_OK) {
-        log_error("Failed to load configuration from: %s", config_file);
-        ftn_config_free(config);
-        return 1;
+    log_info("%s", "Configuration loaded and validated successfully");
+
+    /* Re-initialize logging based on config file settings */
+    if (global_config->logging) {
+        ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
+        int use_syslog = global_config->logging->use_syslog;
+        ftn_log_init(log_level, use_syslog, global_config->logging->ident);
     }
 
-    if (ftn_config_validate(config) != FTN_OK) {
-        log_error("Configuration validation failed");
-        ftn_config_free(config);
-        return 1;
+    /* Determine sleep interval, command-line overrides config */
+    if (global_config->daemon && global_config->daemon->sleep_interval > 0) {
+        if (sleep_interval == 60) { /* Default not changed by CLI */
+            sleep_interval = global_config->daemon->sleep_interval;
+        }
     }
 
-    log_info("Configuration loaded and validated successfully");
+    /* Daemonize if requested */
+    if (daemon_mode) {
+        const char* pid_file = NULL;
+        if (global_config->daemon) {
+            pid_file = global_config->daemon->pid_file;
+        }
 
-    setup_signal_handlers();
+        if (setup_daemon_environment() != 0) {
+            return 1; /* setup_daemon_environment logs errors */
+        }
+        if (write_pid_file(pid_file) != 0) {
+            /* Non-fatal, but log it */
+            log_error("%s", "Failed to write PID file, continuing...");
+        }
+
+        /* In daemon mode, re-init logging to syslog if configured */
+        if (global_config->logging && global_config->logging->use_syslog) {
+            ftn_log_init(global_config->logging->level, 1, global_config->logging->ident);
+        }
+        log_info("Process daemonized. PID file: %s", pid_file ? pid_file : "none");
+    }
+
+    setup_daemon_signals();
 
     if (daemon_mode) {
-        result = run_continuous(config, sleep_interval);
+        result = run_daemon_loop(sleep_interval);
     } else {
-        result = run_single_shot(config);
+        result = run_single_shot();
     }
 
-    ftn_config_free(config);
+    /* Clean up */
+    if (daemon_mode && global_config && global_config->daemon) {
+        remove_pid_file(global_config->daemon->pid_file);
+    }
+    ftn_config_free(global_config);
+    log_info("%s", "FTN Tosser shutting down");
+    ftn_log_close();
 
-    log_info("FTN Tosser shutting down");
     return result;
 }
