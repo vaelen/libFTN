@@ -29,14 +29,61 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 
 #include "ftn.h"
 #include "ftn/config.h"
 #include "ftn/version.h"
+#include "ftn/packet.h"
+#include "ftn/router.h"
+#include "ftn/storage.h"
+#include "ftn/dupecheck.h"
 
 static volatile sig_atomic_t shutdown_requested = 0;
 static volatile sig_atomic_t reload_requested = 0;
 static int verbose_mode = 0;
+
+/* Processing error types */
+typedef enum {
+    FTN_PROCESS_SUCCESS,
+    FTN_PROCESS_ERROR_PACKET_PARSE,
+    FTN_PROCESS_ERROR_DUPLICATE,
+    FTN_PROCESS_ERROR_ROUTING,
+    FTN_PROCESS_ERROR_STORAGE,
+    FTN_PROCESS_ERROR_FILE_MOVE,
+    FTN_PROCESS_ERROR_DIRECTORY,
+    FTN_PROCESS_ERROR_PERMISSION
+} ftn_process_error_t;
+
+/* Processing statistics */
+typedef struct {
+    size_t packets_processed;
+    size_t messages_processed;
+    size_t duplicates_found;
+    size_t messages_stored;
+    size_t messages_forwarded;
+    size_t errors_encountered;
+    time_t processing_start_time;
+    time_t processing_end_time;
+} ftn_processing_stats_t;
+
+/* Function prototypes */
+static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network);
+static ftn_error_t move_packet_to_processed(const char* packet_path, const char* processed_dir);
+static ftn_error_t move_packet_to_bad(const char* packet_path, const char* bad_dir);
+static ftn_error_t process_single_packet(const char* packet_path, const ftn_network_config_t* network,
+                                        ftn_router_t* router, ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                        ftn_processing_stats_t* stats);
+static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_config_t* network,
+                                  ftn_router_t* router, ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                  ftn_processing_stats_t* stats);
+static int process_network_inbox_enhanced(const ftn_network_config_t* network, ftn_router_t* router,
+                                         ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                         ftn_processing_stats_t* stats);
+static void print_processing_stats(const ftn_processing_stats_t* stats);
+static void init_processing_stats(ftn_processing_stats_t* stats);
 
 void print_usage(const char* program_name) {
     printf("Usage: %s [OPTIONS]\n", program_name);
@@ -145,31 +192,86 @@ void setup_signal_handlers(void) {
 }
 
 int process_inbox(const ftn_config_t* config) {
-    log_debug("Processing inbox (placeholder implementation)");
+    ftn_processing_stats_t stats;
+    ftn_router_t* router = NULL;
+    ftn_storage_t* storage = NULL;
+    ftn_dupecheck_t* dupecheck = NULL;
+    const ftn_network_config_t* network;
+    int result = 0;
+    size_t i;
 
     if (!config) {
         log_error("Invalid configuration provided to process_inbox");
         return -1;
     }
 
-    log_info("Processing inbox for configured networks");
+    init_processing_stats(&stats);
+    log_info("Processing inbox for %lu configured networks", (unsigned long)config->network_count);
 
-    return 0;
-}
-
-int process_network_inbox(const ftn_network_config_t* network) {
-    log_debug("Processing network inbox for %s (placeholder implementation)",
-              network ? network->name : "unknown");
-
-    if (!network) {
-        log_error("Invalid network configuration provided");
+    /* Initialize storage first */
+    storage = ftn_storage_new(config);
+    if (!storage) {
+        log_error("Failed to initialize storage");
         return -1;
     }
 
-    log_info("Processing inbox for network: %s", network->name);
+    if (ftn_storage_initialize(storage) != FTN_OK) {
+        log_error("Failed to initialize storage");
+        ftn_storage_free(storage);
+        return -1;
+    }
 
-    return 0;
+    /* Initialize duplicate checker - use first network's duplicate_db path */
+    if (config->network_count > 0 && config->networks[0].duplicate_db) {
+        dupecheck = ftn_dupecheck_new(config->networks[0].duplicate_db);
+    } else {
+        /* Use default path */
+        dupecheck = ftn_dupecheck_new("dupecheck.db");
+    }
+
+    if (!dupecheck) {
+        log_error("Failed to initialize duplicate checker");
+        ftn_storage_free(storage);
+        return -1;
+    }
+
+    if (ftn_dupecheck_load(dupecheck) != FTN_OK) {
+        log_error("Failed to load duplicate database");
+        result = -1;
+        goto cleanup;
+    }
+
+    /* Initialize router with config and dupecheck */
+    router = ftn_router_new(config, dupecheck);
+    if (!router) {
+        log_error("Failed to initialize router");
+        result = -1;
+        goto cleanup;
+    }
+
+    /* Process each configured network */
+    for (i = 0; i < config->network_count; i++) {
+        network = &config->networks[i];
+        log_debug("Processing network: %s", network->name);
+
+        if (process_network_inbox_enhanced(network, router, storage, dupecheck, &stats) != 0) {
+            log_error("Error processing network: %s", network->name);
+            result = -1;
+            /* Continue processing other networks */
+        }
+    }
+
+    stats.processing_end_time = time(NULL);
+    print_processing_stats(&stats);
+
+cleanup:
+    if (dupecheck) ftn_dupecheck_free(dupecheck);
+    if (storage) ftn_storage_free(storage);
+    if (router) ftn_router_free(router);
+
+    return result;
 }
+
 
 int run_single_shot(const ftn_config_t* config) {
     log_info("Running in single-shot mode");
@@ -209,6 +311,343 @@ int run_continuous(const ftn_config_t* config, int sleep_interval) {
 
     log_info("Continuous mode shutting down");
     return 0;
+}
+
+/* Initialize processing statistics */
+static void init_processing_stats(ftn_processing_stats_t* stats) {
+    if (!stats) return;
+
+    memset(stats, 0, sizeof(ftn_processing_stats_t));
+    stats->processing_start_time = time(NULL);
+}
+
+/* Print processing statistics */
+static void print_processing_stats(const ftn_processing_stats_t* stats) {
+    double elapsed_time;
+
+    if (!stats) return;
+
+    elapsed_time = difftime(stats->processing_end_time, stats->processing_start_time);
+
+    log_info("Processing Statistics:");
+    log_info("  Packets processed: %lu", (unsigned long)stats->packets_processed);
+    log_info("  Messages processed: %lu", (unsigned long)stats->messages_processed);
+    log_info("  Duplicates found: %lu", (unsigned long)stats->duplicates_found);
+    log_info("  Messages stored: %lu", (unsigned long)stats->messages_stored);
+    log_info("  Messages forwarded: %lu", (unsigned long)stats->messages_forwarded);
+    log_info("  Errors encountered: %lu", (unsigned long)stats->errors_encountered);
+    log_info("  Processing time: %.2f seconds", elapsed_time);
+}
+
+/* Ensure required directories exist */
+static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network) {
+    struct stat st;
+
+    if (!network) {
+        return FTN_ERROR_INVALID;
+    }
+
+    /* Create inbox directory */
+    if (network->inbox) {
+        if (stat(network->inbox, &st) != 0) {
+            if (mkdir(network->inbox, 0755) != 0) {
+                log_error("Failed to create inbox directory: %s", network->inbox);
+                return FTN_ERROR_FILE;
+            }
+            log_debug("Created inbox directory: %s", network->inbox);
+        }
+    }
+
+    /* Create outbox directory */
+    if (network->outbox) {
+        if (stat(network->outbox, &st) != 0) {
+            if (mkdir(network->outbox, 0755) != 0) {
+                log_error("Failed to create outbox directory: %s", network->outbox);
+                return FTN_ERROR_FILE;
+            }
+            log_debug("Created outbox directory: %s", network->outbox);
+        }
+    }
+
+    /* Create processed directory */
+    if (network->processed) {
+        if (stat(network->processed, &st) != 0) {
+            if (mkdir(network->processed, 0755) != 0) {
+                log_error("Failed to create processed directory: %s", network->processed);
+                return FTN_ERROR_FILE;
+            }
+            log_debug("Created processed directory: %s", network->processed);
+        }
+    }
+
+    /* Create bad directory */
+    if (network->bad) {
+        if (stat(network->bad, &st) != 0) {
+            if (mkdir(network->bad, 0755) != 0) {
+                log_error("Failed to create bad directory: %s", network->bad);
+                return FTN_ERROR_FILE;
+            }
+            log_debug("Created bad directory: %s", network->bad);
+        }
+    }
+
+    return FTN_OK;
+}
+
+/* Move packet to processed directory */
+static ftn_error_t move_packet_to_processed(const char* packet_path, const char* processed_dir) {
+    char dest_path[512];
+    const char* filename;
+
+    if (!packet_path || !processed_dir) {
+        return FTN_ERROR_INVALID;
+    }
+
+    filename = strrchr(packet_path, '/');
+    if (filename) {
+        filename++; /* Skip the '/' */
+    } else {
+        filename = packet_path;
+    }
+
+    snprintf(dest_path, sizeof(dest_path), "%s/%s", processed_dir, filename);
+
+    if (rename(packet_path, dest_path) != 0) {
+        log_error("Failed to move packet %s to processed directory: %s", packet_path, strerror(errno));
+        return FTN_ERROR_FILE;
+    }
+
+    log_debug("Moved packet to processed: %s -> %s", packet_path, dest_path);
+    return FTN_OK;
+}
+
+/* Move packet to bad directory */
+static ftn_error_t move_packet_to_bad(const char* packet_path, const char* bad_dir) {
+    char dest_path[512];
+    const char* filename;
+
+    if (!packet_path || !bad_dir) {
+        return FTN_ERROR_INVALID;
+    }
+
+    filename = strrchr(packet_path, '/');
+    if (filename) {
+        filename++; /* Skip the '/' */
+    } else {
+        filename = packet_path;
+    }
+
+    snprintf(dest_path, sizeof(dest_path), "%s/%s", bad_dir, filename);
+
+    if (rename(packet_path, dest_path) != 0) {
+        log_error("Failed to move packet %s to bad directory: %s", packet_path, strerror(errno));
+        return FTN_ERROR_FILE;
+    }
+
+    log_debug("Moved packet to bad: %s -> %s", packet_path, dest_path);
+    return FTN_OK;
+}
+
+/* Process a single message */
+static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_config_t* network,
+                                  ftn_router_t* router, ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                  ftn_processing_stats_t* stats) {
+    ftn_routing_decision_t decision;
+    ftn_error_t error;
+    int is_duplicate;
+
+    if (!msg || !network || !router || !storage || !dupecheck || !stats) {
+        return FTN_ERROR_INVALID;
+    }
+
+    stats->messages_processed++;
+
+    /* Check for duplicates */
+    error = ftn_dupecheck_is_duplicate(dupecheck, msg, &is_duplicate);
+    if (error != FTN_OK) {
+        log_error("Duplicate check failed for message");
+        stats->errors_encountered++;
+        return FTN_ERROR_INVALID;
+    }
+
+    if (is_duplicate) {
+        log_debug("Skipping duplicate message: %s", msg->msgid ? msg->msgid : "no-msgid");
+        stats->duplicates_found++;
+        return FTN_OK;
+    }
+
+    /* Add to duplicate database */
+    error = ftn_dupecheck_add_message(dupecheck, msg);
+    if (error != FTN_OK) {
+        log_error("Failed to add message to duplicate database");
+        /* Continue processing - this is not fatal */
+    }
+
+    /* Determine routing */
+    error = ftn_router_route_message(router, msg, &decision);
+    if (error != FTN_OK) {
+        log_error("Routing failed for message");
+        stats->errors_encountered++;
+        return FTN_ERROR_INVALID;
+    }
+
+    /* Store message based on routing decision */
+    switch (decision.action) {
+        case FTN_ROUTE_LOCAL_MAIL:
+            error = ftn_storage_store_mail(storage, msg, decision.destination_user, network->name);
+            if (error == FTN_OK) {
+                stats->messages_stored++;
+                log_debug("Stored netmail for user: %s", decision.destination_user);
+            } else {
+                log_error("Failed to store netmail for user: %s", decision.destination_user);
+                stats->errors_encountered++;
+                return FTN_ERROR_INVALID;
+            }
+            break;
+
+        case FTN_ROUTE_LOCAL_NEWS:
+            error = ftn_storage_store_news(storage, msg, decision.destination_area, network->name);
+            if (error == FTN_OK) {
+                stats->messages_stored++;
+                log_debug("Stored echomail for area: %s", decision.destination_area);
+            } else {
+                log_error("Failed to store echomail for area: %s", decision.destination_area);
+                stats->errors_encountered++;
+                return FTN_ERROR_INVALID;
+            }
+            break;
+
+        case FTN_ROUTE_FORWARD:
+            /* TODO: Implement forwarding queue */
+            stats->messages_forwarded++;
+            {
+                char addr_str[64];
+                ftn_address_to_string(&decision.forward_to, addr_str, sizeof(addr_str));
+                log_debug("Message marked for forwarding to %s", addr_str);
+            }
+            break;
+
+        case FTN_ROUTE_DROP:
+            log_debug("Dropping message per routing rules: %s", msg->msgid ? msg->msgid : "no-msgid");
+            break;
+
+        default:
+            log_error("Invalid routing action: %d", decision.action);
+            stats->errors_encountered++;
+            return FTN_ERROR_INVALID;
+    }
+
+    return FTN_OK;
+}
+
+/* Process a single packet file */
+static ftn_error_t process_single_packet(const char* packet_path, const ftn_network_config_t* network,
+                                        ftn_router_t* router, ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                        ftn_processing_stats_t* stats) {
+    ftn_packet_t* packet = NULL;
+    ftn_error_t error;
+    size_t i;
+
+    if (!packet_path || !network || !router || !storage || !dupecheck || !stats) {
+        return FTN_ERROR_INVALID;
+    }
+
+    log_debug("Processing packet: %s", packet_path);
+
+    /* Load packet */
+    error = ftn_packet_load(packet_path, &packet);
+    if (error != FTN_OK) {
+        log_error("Failed to load packet: %s", packet_path);
+        stats->errors_encountered++;
+
+        /* Move to bad directory */
+        if (network->bad) {
+            move_packet_to_bad(packet_path, network->bad);
+        }
+        return FTN_ERROR_PARSE;
+    }
+
+    stats->packets_processed++;
+    log_debug("Loaded packet with %lu messages", (unsigned long)packet->message_count);
+
+    /* Process each message in the packet */
+    for (i = 0; i < packet->message_count; i++) {
+        error = process_message(packet->messages[i], network, router, storage, dupecheck, stats);
+        if (error != FTN_OK) {
+            log_error("Error processing message %lu in packet %s", (unsigned long)(i + 1), packet_path);
+            /* Continue processing other messages */
+        }
+    }
+
+    /* Move packet to processed directory */
+    if (network->processed) {
+        error = move_packet_to_processed(packet_path, network->processed);
+        if (error != FTN_OK) {
+            log_error("Failed to move processed packet: %s", packet_path);
+            /* Not fatal - packet was processed successfully */
+        }
+    }
+
+    ftn_packet_free(packet);
+    return FTN_OK;
+}
+
+/* Process network inbox */
+static int process_network_inbox_enhanced(const ftn_network_config_t* network, ftn_router_t* router,
+                                         ftn_storage_t* storage, ftn_dupecheck_t* dupecheck,
+                                         ftn_processing_stats_t* stats) {
+    DIR* dir;
+    struct dirent* entry;
+    char packet_path[512];
+    int result = 0;
+
+    if (!network || !router || !storage || !dupecheck || !stats) {
+        log_error("Invalid parameters to process_network_inbox_enhanced");
+        return -1;
+    }
+
+    log_info("Processing inbox for network: %s", network->name);
+
+    /* Ensure directories exist */
+    if (ensure_directories_exist(network) != FTN_OK) {
+        log_error("Failed to ensure directories exist for network: %s", network->name);
+        return -1;
+    }
+
+    if (!network->inbox) {
+        log_error("No inbox path configured for network: %s", network->name);
+        return -1;
+    }
+
+    /* Open inbox directory */
+    dir = opendir(network->inbox);
+    if (!dir) {
+        log_error("Failed to open inbox directory: %s", network->inbox);
+        return -1;
+    }
+
+    /* Process each .pkt file */
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            continue; /* Skip hidden files and . .. */
+        }
+
+        /* Check if it's a packet file */
+        if (strlen(entry->d_name) > 4 &&
+            strcasecmp(entry->d_name + strlen(entry->d_name) - 4, ".pkt") == 0) {
+
+            snprintf(packet_path, sizeof(packet_path), "%s/%s", network->inbox, entry->d_name);
+
+            if (process_single_packet(packet_path, network, router, storage, dupecheck, stats) != FTN_OK) {
+                log_error("Error processing packet: %s", packet_path);
+                result = -1;
+                /* Continue processing other packets */
+            }
+        }
+    }
+
+    closedir(dir);
+    return result;
 }
 
 int main(int argc, char* argv[]) {

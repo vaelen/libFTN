@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #define _GNU_SOURCE
 
@@ -216,9 +217,29 @@ void test_logging_functions(void) {
     test_pass();
 }
 
+void setup_test_directories(void) {
+    /* Create test directories required by the test configuration */
+    system("mkdir -p /tmp/test_ftn/testnet/inbox");
+    system("mkdir -p /tmp/test_ftn/testnet/outbox");
+    system("mkdir -p /tmp/test_ftn/testnet/processed");
+    system("mkdir -p /tmp/test_ftn/testnet/bad");
+    system("mkdir -p /tmp/test_mail/testuser");
+    system("mkdir -p /tmp/test_news");
+}
+
+void cleanup_test_directories(void) {
+    /* Clean up test directories */
+    system("rm -rf /tmp/test_ftn");
+    system("rm -rf /tmp/test_mail");
+    system("rm -rf /tmp/test_news");
+}
+
 int main(void) {
     printf("FTN Tosser Integration Tests\n");
     printf("============================\n\n");
+
+    /* Setup test environment */
+    setup_test_directories();
 
     test_help_option();
     test_version_option();
@@ -233,6 +254,9 @@ int main(void) {
     test_logging_functions();
 
     printf("\nTest Results: %d/%d tests passed\n", tests_passed, tests_run);
+
+    /* Cleanup test environment */
+    cleanup_test_directories();
 
     if (tests_passed == tests_run) {
         printf("All tests PASSED!\n");
