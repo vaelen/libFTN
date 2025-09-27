@@ -96,6 +96,9 @@ typedef struct {
 
 static ftn_global_stats_t global_stats = {0};
 
+void ftn_log_init(ftn_log_level_t level, int use_syslog, const char* ident);
+void ftn_log_close(void);
+
 /* Function prototypes */
 static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network);
 static ftn_error_t move_packet_to_processed(const char* packet_path, const char* processed_dir);
@@ -207,7 +210,7 @@ static int daemonize(void) {
 
 static int setup_daemon_environment(void) {
     if (daemonize() != 0) {
-        log_critical("%s", "Failed to daemonize process");
+        log_critical("Failed to daemonize process");
         return -1;
     }
     return 0;
@@ -222,7 +225,7 @@ static int write_pid_file(const char* pid_file) {
 
     f = fopen(pid_file, "w");
     if (!f) {
-        log_error("Failed to open PID file for writing: %s", pid_file);
+        logf_error("Failed to open PID file for writing: %s", pid_file);
         return -1;
     }
 
@@ -237,7 +240,7 @@ static int remove_pid_file(const char* pid_file) {
     }
 
     if (unlink(pid_file) != 0) {
-        log_warning("Failed to remove PID file: %s", pid_file);
+        logf_warning("Failed to remove PID file: %s", pid_file);
         return -1;
     }
     return 0;
@@ -277,20 +280,20 @@ static void ftn_stats_dump(void) {
              uptime / 86400, (uptime % 86400) / 3600,
              (uptime % 3600) / 60, uptime % 60);
 
-    log_info("%s", "=== FTN Tosser Statistics ===");
-    log_info("Uptime: %s", uptime_str);
-    log_info("Packets Processed: %lu", global_stats.packets_processed);
-    log_info("Messages Processed: %lu", global_stats.messages_processed);
-    log_info("Duplicates Detected: %lu", global_stats.duplicates_detected);
-    log_info("Messages Stored: %lu", global_stats.messages_stored);
-    log_info("Messages Forwarded: %lu", global_stats.messages_forwarded);
-    log_info("Total Errors: %lu", global_stats.errors_total);
-    log_info("Processing Cycles: %lu", global_stats.cycles_completed);
-    log_info("Average Cycle Time: %.2f seconds", global_stats.avg_cycle_time);
+    log_info("=== FTN Tosser Statistics ===");
+    logf_info("Uptime: %s", uptime_str);
+    logf_info("Packets Processed: %lu", global_stats.packets_processed);
+    logf_info("Messages Processed: %lu", global_stats.messages_processed);
+    logf_info("Duplicates Detected: %lu", global_stats.duplicates_detected);
+    logf_info("Messages Stored: %lu", global_stats.messages_stored);
+    logf_info("Messages Forwarded: %lu", global_stats.messages_forwarded);
+    logf_info("Total Errors: %lu", global_stats.errors_total);
+    logf_info("Processing Cycles: %lu", global_stats.cycles_completed);
+    logf_info("Average Cycle Time: %.2f seconds", global_stats.avg_cycle_time);
 }
 
 static void ftn_stats_reset(void) {
-    log_info("%s", "Resetting statistics");
+    log_info("Resetting statistics");
     ftn_stats_init();
 }
 
@@ -298,22 +301,22 @@ static void ftn_stats_reset(void) {
 static void reload_configuration(void) {
     ftn_config_t* new_config = NULL;
 
-    log_info("Reloading configuration from: %s", config_file_path);
+    logf_info("Reloading configuration from: %s", config_file_path);
 
     new_config = ftn_config_new();
     if (!new_config) {
-        log_error("%s", "Failed to allocate memory for new configuration");
+        log_error("Failed to allocate memory for new configuration");
         return;
     }
 
     if (ftn_config_load(new_config, config_file_path) != FTN_OK) {
-        log_error("%s", "Failed to reload configuration, keeping current config");
+        log_error("Failed to reload configuration, keeping current config");
         ftn_config_free(new_config);
         return;
     }
 
     if (ftn_config_validate(new_config) != FTN_OK) {
-        log_error("%s", "New configuration is invalid, keeping current config");
+        log_error("New configuration is invalid, keeping current config");
         ftn_config_free(new_config);
         return;
     }
@@ -329,7 +332,7 @@ static void reload_configuration(void) {
         ftn_log_init(log_level, use_syslog, global_config->logging->ident);
     }
 
-    log_info("%s", "Configuration reloaded successfully");
+    log_info("Configuration reloaded successfully");
 }
 
 
@@ -337,25 +340,25 @@ static void reload_configuration(void) {
 static void handle_sigterm(int sig) {
     (void)sig;
     shutdown_requested = 1;
-    log_info("%s", "Shutdown signal received, exiting gracefully");
+    log_info("Shutdown signal received, exiting gracefully");
 }
 
 static void handle_sighup(int sig) {
     (void)sig;
     reload_requested = 1;
-    log_info("%s", "Reload signal received, will reload configuration");
+    log_info("Reload signal received, will reload configuration");
 }
 
 static void handle_sigusr1(int sig) {
     (void)sig;
     dump_stats_requested = 1;
-    log_info("%s", "Statistics dump requested");
+    log_info("Statistics dump requested");
 }
 
 static void handle_sigusr2(int sig) {
     (void)sig;
     toggle_debug_requested = 1;
-    log_info("%s", "Debug mode toggle requested");
+    log_info("Debug mode toggle requested");
 }
 
 static void setup_daemon_signals(void) {
@@ -377,22 +380,22 @@ int process_inbox(const ftn_config_t* config) {
     size_t i;
 
     if (!config) {
-        log_error("%s", "Invalid configuration provided to process_inbox");
+        log_error("Invalid configuration provided to process_inbox");
         return -1;
     }
 
     init_processing_stats(&stats);
-    log_info("Processing inbox for %lu configured networks", (unsigned long)config->network_count);
+    logf_info("Processing inbox for %lu configured networks", (unsigned long)config->network_count);
 
     /* Initialize storage first */
     storage = ftn_storage_new(config);
     if (!storage) {
-        log_error("%s", "Failed to initialize storage");
+        log_error("Failed to initialize storage");
         return -1;
     }
 
     if (ftn_storage_initialize(storage) != FTN_OK) {
-        log_error("%s", "Failed to initialize storage");
+        log_error("Failed to initialize storage");
         ftn_storage_free(storage);
         return -1;
     }
@@ -406,13 +409,13 @@ int process_inbox(const ftn_config_t* config) {
     }
 
     if (!dupecheck) {
-        log_error("%s", "Failed to initialize duplicate checker");
+        log_error("Failed to initialize duplicate checker");
         ftn_storage_free(storage);
         return -1;
     }
 
     if (ftn_dupecheck_load(dupecheck) != FTN_OK) {
-        log_error("%s", "Failed to load duplicate database");
+        log_error("Failed to load duplicate database");
         result = -1;
         goto cleanup;
     }
@@ -420,7 +423,7 @@ int process_inbox(const ftn_config_t* config) {
     /* Initialize router with config and dupecheck */
     router = ftn_router_new(config, dupecheck);
     if (!router) {
-        log_error("%s", "Failed to initialize router");
+        log_error("Failed to initialize router");
         result = -1;
         goto cleanup;
     }
@@ -428,10 +431,10 @@ int process_inbox(const ftn_config_t* config) {
     /* Process each configured network */
     for (i = 0; i < config->network_count; i++) {
         network = &config->networks[i];
-        log_debug("Processing network: %s", network->name);
+        logf_debug("Processing network: %s", network->name);
 
         if (process_network_inbox_enhanced(network, router, storage, dupecheck, &stats) != 0) {
-            log_error("Error processing network: %s", network->name);
+            logf_error("Error processing network: %s", network->name);
             result = -1;
             /* Continue processing other networks */
         }
@@ -450,14 +453,14 @@ cleanup:
 
 
 int run_single_shot(void) {
-    log_info("%s", "Running in single-shot mode");
+    log_info("Running in single-shot mode");
 
     if (process_inbox(global_config) != 0) {
-        log_error("%s", "Error processing inbox");
+        log_error("Error processing inbox");
         return -1;
     }
 
-    log_info("%s", "Single-shot processing completed");
+    log_info("Single-shot processing completed");
     return 0;
 }
 
@@ -469,10 +472,10 @@ static int run_daemon_loop(int sleep_interval) {
         ftn_processing_stats_t stats;
         init_processing_stats(&stats);
 
-        log_debug("%s", "Starting processing cycle");
+        log_debug("Starting processing cycle");
 
         if (process_inbox(global_config) != 0) {
-            log_error("%s", "Error processing inbox, continuing");
+            log_error("Error processing inbox, continuing");
         }
 
         /* TODO: Implement process_outbound(global_config) */
@@ -490,17 +493,17 @@ static int run_daemon_loop(int sleep_interval) {
         }
         if (toggle_debug_requested) {
             current_log_level = (current_log_level == FTN_LOG_DEBUG) ? FTN_LOG_INFO : FTN_LOG_DEBUG;
-            log_info("Log level changed to %s", current_log_level == FTN_LOG_DEBUG ? "DEBUG" : "INFO");
+            logf_info("Log level changed to %s", current_log_level == FTN_LOG_DEBUG ? "DEBUG" : "INFO");
             toggle_debug_requested = 0;
         }
 
-        log_debug("Processing cycle complete, sleeping for %d seconds", sleep_interval);
+        logf_debug("Processing cycle complete, sleeping for %d seconds", sleep_interval);
         for (i = 0; i < sleep_interval && !shutdown_requested; i++) {
             sleep(1);
         }
     }
 
-    log_info("%s", "Daemon loop shutting down");
+    log_info("Daemon loop shutting down");
     return 0;
 }
 
@@ -520,14 +523,14 @@ static void print_processing_stats(const ftn_processing_stats_t* stats) {
 
     elapsed_time = difftime(stats->processing_end_time, stats->processing_start_time);
 
-    log_info("%s", "Processing Statistics:");
-    log_info("  Packets processed: %lu", (unsigned long)stats->packets_processed);
-    log_info("  Messages processed: %lu", (unsigned long)stats->messages_processed);
-    log_info("  Duplicates found: %lu", (unsigned long)stats->duplicates_found);
-    log_info("  Messages stored: %lu", (unsigned long)stats->messages_stored);
-    log_info("  Messages forwarded: %lu", (unsigned long)stats->messages_forwarded);
-    log_info("  Errors encountered: %lu", (unsigned long)stats->errors_encountered);
-    log_info("  Processing time: %.2f seconds", elapsed_time);
+    log_info("Processing Statistics:");
+    logf_info("  Packets processed: %lu", (unsigned long)stats->packets_processed);
+    logf_info("  Messages processed: %lu", (unsigned long)stats->messages_processed);
+    logf_info("  Duplicates found: %lu", (unsigned long)stats->duplicates_found);
+    logf_info("  Messages stored: %lu", (unsigned long)stats->messages_stored);
+    logf_info("  Messages forwarded: %lu", (unsigned long)stats->messages_forwarded);
+    logf_info("  Errors encountered: %lu", (unsigned long)stats->errors_encountered);
+    logf_info("  Processing time: %.2f seconds", elapsed_time);
 }
 
 /* Ensure required directories exist */
@@ -542,10 +545,10 @@ static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network)
     if (network->inbox) {
         if (stat(network->inbox, &st) != 0) {
             if (mkdir(network->inbox, 0755) != 0) {
-                log_error("Failed to create inbox directory: %s", network->inbox);
+                logf_error("Failed to create inbox directory: %s", network->inbox);
                 return FTN_ERROR_FILE;
             }
-            log_debug("Created inbox directory: %s", network->inbox);
+            logf_debug("Created inbox directory: %s", network->inbox);
         }
     }
 
@@ -553,10 +556,10 @@ static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network)
     if (network->outbox) {
         if (stat(network->outbox, &st) != 0) {
             if (mkdir(network->outbox, 0755) != 0) {
-                log_error("Failed to create outbox directory: %s", network->outbox);
+                logf_error("Failed to create outbox directory: %s", network->outbox);
                 return FTN_ERROR_FILE;
             }
-            log_debug("Created outbox directory: %s", network->outbox);
+            logf_debug("Created outbox directory: %s", network->outbox);
         }
     }
 
@@ -564,10 +567,10 @@ static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network)
     if (network->processed) {
         if (stat(network->processed, &st) != 0) {
             if (mkdir(network->processed, 0755) != 0) {
-                log_error("Failed to create processed directory: %s", network->processed);
+                logf_error("Failed to create processed directory: %s", network->processed);
                 return FTN_ERROR_FILE;
             }
-            log_debug("Created processed directory: %s", network->processed);
+            logf_debug("Created processed directory: %s", network->processed);
         }
     }
 
@@ -575,10 +578,10 @@ static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network)
     if (network->bad) {
         if (stat(network->bad, &st) != 0) {
             if (mkdir(network->bad, 0755) != 0) {
-                log_error("Failed to create bad directory: %s", network->bad);
+                logf_error("Failed to create bad directory: %s", network->bad);
                 return FTN_ERROR_FILE;
             }
-            log_debug("Created bad directory: %s", network->bad);
+            logf_debug("Created bad directory: %s", network->bad);
         }
     }
 
@@ -604,11 +607,11 @@ static ftn_error_t move_packet_to_processed(const char* packet_path, const char*
     snprintf(dest_path, sizeof(dest_path), "%s/%s", processed_dir, filename);
 
     if (rename(packet_path, dest_path) != 0) {
-        log_error("Failed to move packet %s to processed directory: %s", packet_path, strerror(errno));
+        logf_error("Failed to move packet %s to processed directory: %s", packet_path, strerror(errno));
         return FTN_ERROR_FILE;
     }
 
-    log_debug("Moved packet to processed: %s -> %s", packet_path, dest_path);
+    logf_debug("Moved packet to processed: %s -> %s", packet_path, dest_path);
     return FTN_OK;
 }
 
@@ -631,11 +634,11 @@ static ftn_error_t move_packet_to_bad(const char* packet_path, const char* bad_d
     snprintf(dest_path, sizeof(dest_path), "%s/%s", bad_dir, filename);
 
     if (rename(packet_path, dest_path) != 0) {
-        log_error("Failed to move packet %s to bad directory: %s", packet_path, strerror(errno));
+        logf_error("Failed to move packet %s to bad directory: %s", packet_path, strerror(errno));
         return FTN_ERROR_FILE;
     }
 
-    log_debug("Moved packet to bad: %s -> %s", packet_path, dest_path);
+    logf_debug("Moved packet to bad: %s -> %s", packet_path, dest_path);
     return FTN_OK;
 }
 
@@ -656,13 +659,13 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
     /* Check for duplicates */
     error = ftn_dupecheck_is_duplicate(dupecheck, msg, &is_duplicate);
     if (error != FTN_OK) {
-        log_error("%s", "Duplicate check failed for message");
+        log_error("Duplicate check failed for message");
         stats->errors_encountered++;
         return FTN_ERROR_INVALID;
     }
 
     if (is_duplicate) {
-        log_debug("Skipping duplicate message: %s", msg->msgid ? msg->msgid : "no-msgid");
+        logf_debug("Skipping duplicate message: %s", msg->msgid ? msg->msgid : "no-msgid");
         stats->duplicates_found++;
         return FTN_OK;
     }
@@ -670,14 +673,14 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
     /* Add to duplicate database */
     error = ftn_dupecheck_add_message(dupecheck, msg);
     if (error != FTN_OK) {
-        log_error("%s", "Failed to add message to duplicate database");
+        log_error("Failed to add message to duplicate database");
         /* Continue processing - this is not fatal */
     }
 
     /* Determine routing */
     error = ftn_router_route_message(router, msg, &decision);
     if (error != FTN_OK) {
-        log_error("%s", "Routing failed for message");
+        log_error("Routing failed for message");
         stats->errors_encountered++;
         return FTN_ERROR_INVALID;
     }
@@ -688,9 +691,9 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
             error = ftn_storage_store_mail(storage, msg, decision.destination_user, network->name);
             if (error == FTN_OK) {
                 stats->messages_stored++;
-                log_debug("Stored netmail for user: %s", decision.destination_user);
+                logf_debug("Stored netmail for user: %s", decision.destination_user);
             } else {
-                log_error("Failed to store netmail for user: %s", decision.destination_user);
+                logf_error("Failed to store netmail for user: %s", decision.destination_user);
                 stats->errors_encountered++;
                 return FTN_ERROR_INVALID;
             }
@@ -700,9 +703,9 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
             error = ftn_storage_store_news(storage, msg, decision.destination_area, network->name);
             if (error == FTN_OK) {
                 stats->messages_stored++;
-                log_debug("Stored echomail for area: %s", decision.destination_area);
+                logf_debug("Stored echomail for area: %s", decision.destination_area);
             } else {
-                log_error("Failed to store echomail for area: %s", decision.destination_area);
+                logf_error("Failed to store echomail for area: %s", decision.destination_area);
                 stats->errors_encountered++;
                 return FTN_ERROR_INVALID;
             }
@@ -714,16 +717,16 @@ static ftn_error_t process_message(const ftn_message_t* msg, const ftn_network_c
             {
                 char addr_str[64];
                 ftn_address_to_string(&decision.forward_to, addr_str, sizeof(addr_str));
-                log_debug("Message marked for forwarding to %s", addr_str);
+                logf_debug("Message marked for forwarding to %s", addr_str);
             }
             break;
 
         case FTN_ROUTE_DROP:
-            log_debug("Dropping message per routing rules: %s", msg->msgid ? msg->msgid : "no-msgid");
+            logf_debug("Dropping message per routing rules: %s", msg->msgid ? msg->msgid : "no-msgid");
             break;
 
         default:
-            log_error("Invalid routing action: %d", decision.action);
+            logf_error("Invalid routing action: %d", decision.action);
             stats->errors_encountered++;
             return FTN_ERROR_INVALID;
     }
@@ -743,12 +746,12 @@ static ftn_error_t process_single_packet(const char* packet_path, const ftn_netw
         return FTN_ERROR_INVALID;
     }
 
-    log_debug("Processing packet: %s", packet_path);
+    logf_debug("Processing packet: %s", packet_path);
 
     /* Load packet */
     error = ftn_packet_load(packet_path, &packet);
     if (error != FTN_OK) {
-        log_error("Failed to load packet: %s", packet_path);
+        logf_error("Failed to load packet: %s", packet_path);
         stats->errors_encountered++;
 
         /* Move to bad directory */
@@ -759,13 +762,13 @@ static ftn_error_t process_single_packet(const char* packet_path, const ftn_netw
     }
 
     stats->packets_processed++;
-    log_debug("Loaded packet with %lu messages", (unsigned long)packet->message_count);
+    logf_debug("Loaded packet with %lu messages", (unsigned long)packet->message_count);
 
     /* Process each message in the packet */
     for (i = 0; i < packet->message_count; i++) {
         error = process_message(packet->messages[i], network, router, storage, dupecheck, stats);
         if (error != FTN_OK) {
-            log_error("Error processing message %lu in packet %s", (unsigned long)(i + 1), packet_path);
+            logf_error("Error processing message %lu in packet %s", (unsigned long)(i + 1), packet_path);
             /* Continue processing other messages */
         }
     }
@@ -774,7 +777,7 @@ static ftn_error_t process_single_packet(const char* packet_path, const ftn_netw
     if (network->processed) {
         error = move_packet_to_processed(packet_path, network->processed);
         if (error != FTN_OK) {
-            log_error("Failed to move processed packet: %s", packet_path);
+            logf_error("Failed to move processed packet: %s", packet_path);
             /* Not fatal - packet was processed successfully */
         }
     }
@@ -793,27 +796,27 @@ static int process_network_inbox_enhanced(const ftn_network_config_t* network, f
     int result = 0;
 
     if (!network || !router || !storage || !dupecheck || !stats) {
-        log_error("%s", "Invalid parameters to process_network_inbox_enhanced");
+        log_error("Invalid parameters to process_network_inbox_enhanced");
         return -1;
     }
 
-    log_info("Processing inbox for network: %s", network->name);
+    logf_info("Processing inbox for network: %s", network->name);
 
     /* Ensure directories exist */
     if (ensure_directories_exist(network) != FTN_OK) {
-        log_error("Failed to ensure directories exist for network: %s", network->name);
+        logf_error("Failed to ensure directories exist for network: %s", network->name);
         return -1;
     }
 
     if (!network->inbox) {
-        log_error("No inbox path configured for network: %s", network->name);
+        logf_error("No inbox path configured for network: %s", network->name);
         return -1;
     }
 
     /* Open inbox directory */
     dir = opendir(network->inbox);
     if (!dir) {
-        log_error("Failed to open inbox directory: %s", network->inbox);
+        logf_error("Failed to open inbox directory: %s", network->inbox);
         return -1;
     }
 
@@ -830,7 +833,7 @@ static int process_network_inbox_enhanced(const ftn_network_config_t* network, f
             snprintf(packet_path, sizeof(packet_path), "%s/%s", network->inbox, entry->d_name);
 
             if (process_single_packet(packet_path, network, router, storage, dupecheck, stats) != FTN_OK) {
-                log_error("Error processing packet: %s", packet_path);
+                logf_error("Error processing packet: %s", packet_path);
                 result = -1;
                 /* Continue processing other packets */
             }
@@ -892,29 +895,29 @@ int main(int argc, char* argv[]) {
     /* Initialize logging early */
     ftn_log_init(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "ftntoss");
 
-    log_info("%s", "FTN Tosser starting up");
-    log_debug("Configuration file: %s", config_file_path);
-    log_debug("Daemon mode: %s", daemon_mode ? "yes" : "no");
-    log_debug("Verbose mode: %s", verbose_mode ? "yes" : "no");
+    log_info("FTN Tosser starting up");
+    logf_debug("Configuration file: %s", config_file_path);
+    logf_debug("Daemon mode: %s", daemon_mode ? "yes" : "no");
+    logf_debug("Verbose mode: %s", verbose_mode ? "yes" : "no");
 
     /* Load configuration */
     global_config = ftn_config_new();
     if (!global_config) {
-        log_critical("%s", "Failed to allocate configuration structure");
+        log_critical("Failed to allocate configuration structure");
         return 1;
     }
     if (ftn_config_load(global_config, config_file_path) != FTN_OK) {
-        log_critical("Failed to load configuration from: %s", config_file_path);
+        logf_critical("Failed to load configuration from: %s", config_file_path);
         ftn_config_free(global_config);
         return 1;
     }
     if (ftn_config_validate(global_config) != FTN_OK) {
-        log_critical("%s", "Configuration validation failed");
+        log_critical("Configuration validation failed");
         ftn_config_free(global_config);
         return 1;
     }
 
-    log_info("%s", "Configuration loaded and validated successfully");
+    log_info("Configuration loaded and validated successfully");
 
     /* Re-initialize logging based on config file settings */
     if (global_config->logging) {
@@ -942,14 +945,14 @@ int main(int argc, char* argv[]) {
         }
         if (write_pid_file(pid_file) != 0) {
             /* Non-fatal, but log it */
-            log_error("%s", "Failed to write PID file, continuing...");
+            log_error("Failed to write PID file, continuing...");
         }
 
         /* In daemon mode, re-init logging to syslog if configured */
         if (global_config->logging && global_config->logging->use_syslog) {
             ftn_log_init(global_config->logging->level, 1, global_config->logging->ident);
         }
-        log_info("Process daemonized. PID file: %s", pid_file ? pid_file : "none");
+        logf_info("Process daemonized. PID file: %s", pid_file ? pid_file : "none");
     }
 
     setup_daemon_signals();
@@ -965,7 +968,7 @@ int main(int argc, char* argv[]) {
         remove_pid_file(global_config->daemon->pid_file);
     }
     ftn_config_free(global_config);
-    log_info("%s", "FTN Tosser shutting down");
+    log_info("FTN Tosser shutting down");
     ftn_log_close();
 
     return result;
