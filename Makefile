@@ -14,7 +14,7 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c $(SRCDIR)/net.c $(SRCDIR)/fnmailer.c $(SRCDIR)/binkp.c $(SRCDIR)/binkp_commands.c $(SRCDIR)/binkp_session.c $(SRCDIR)/binkp_auth.c $(SRCDIR)/bso.c $(SRCDIR)/flow.c $(SRCDIR)/control.c $(SRCDIR)/transfer.c $(SRCDIR)/binkp_cram.c $(SRCDIR)/binkp_nr.c $(SRCDIR)/binkp_plz.c $(SRCDIR)/binkp_crc.c
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
@@ -22,7 +22,7 @@ TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs
-EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c
+EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c $(SRCDIR)/fnmailer_main.c
 EXAMPLE_BINARIES = $(EXAMPLE_SOURCES:$(SRCDIR)/%.c=$(BINDIR)/%)
 
 .PHONY: all clean test examples
