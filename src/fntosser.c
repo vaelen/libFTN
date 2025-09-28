@@ -1,5 +1,5 @@
 /*
- * ftntoss - FidoNet Technology Network Message Tosser
+ * fntosser - FidoNet Technology Network Message Tosser
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -141,13 +141,13 @@ void print_usage(const char* program_name) {
     printf("  -h, --help            Show this help message\n");
     printf("      --version         Show version information\n");
     printf("\nExamples:\n");
-    printf("  %s -c /etc/ftntoss.ini                # Single-shot mode\n", program_name);
-    printf("  %s -c /etc/ftntoss.ini -d             # Daemon mode\n", program_name);
-    printf("  %s -c /etc/ftntoss.ini -d -s 30       # Daemon mode, 30s intervals\n", program_name);
+    printf("  %s -c /etc/fntosser.ini                # Single-shot mode\n", program_name);
+    printf("  %s -c /etc/fntosser.ini -d             # Daemon mode\n", program_name);
+    printf("  %s -c /etc/fntosser.ini -d -s 30       # Daemon mode, 30s intervals\n", program_name);
 }
 
 void print_version(void) {
-    printf("ftntoss (libFTN) %d.%d.%d\n", FTN_VERSION_MAJOR, FTN_VERSION_MINOR, FTN_VERSION_PATCH);
+    printf("fntosser (libFTN) %d.%d.%d\n", FTN_VERSION_MAJOR, FTN_VERSION_MINOR, FTN_VERSION_PATCH);
     printf("Copyright (c) 2025 Andrew C. Young\n");
     printf("This is free software; see the source for copying conditions.\n");
 }
@@ -889,7 +889,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Initialize logging early */
-    ftn_log_init(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "ftntoss");
+    ftn_log_init(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "fntosser");
 
     log_info("FTN Tosser starting up");
     logf_debug("Configuration file: %s", config_file_path);

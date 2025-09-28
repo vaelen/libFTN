@@ -6,9 +6,9 @@ After=network.target
 Type=forking
 User=ftn
 Group=ftn
-ExecStart=/usr/local/bin/ftntoss -c /etc/ftntoss.ini -d
+ExecStart=/usr/local/bin/fntosser -c /etc/fntosser.ini -d
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/ftntoss.pid
+PIDFile=/var/run/fntosser.pid
 Restart=always
 
 [Install]

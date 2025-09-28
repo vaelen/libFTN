@@ -1,5 +1,5 @@
 /*
- * test_ftntoss.c - FTN Tosser Integration Tests
+ * test_fntosser.c - FTN Tosser Integration Tests
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
@@ -16,7 +16,7 @@
 #include "ftn.h"
 #include "ftn/config.h"
 
-#define TEST_CONFIG_FILE "tests/data/ftntoss_test.ini"
+#define TEST_CONFIG_FILE "tests/data/fntosser_test.ini"
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -37,16 +37,16 @@ void test_fail(const char* message) {
     tests_run++;
 }
 
-int run_ftntoss_command(const char* args, char* output, size_t output_size) {
+int run_fntosser_command(const char* args, char* output, size_t output_size) {
     char command[512];
     int status;
 
-    snprintf(command, sizeof(command), "./bin/ftntoss %s > tmp/ftntoss_test_output 2>&1", args);
+    snprintf(command, sizeof(command), "./bin/fntosser %s > tmp/fntosser_test_output 2>&1", args);
 
     status = system(command);
 
     if (output && output_size > 0) {
-        FILE* fp = fopen("tmp/ftntoss_test_output", "r");
+        FILE* fp = fopen("tmp/fntosser_test_output", "r");
         if (fp) {
             size_t bytes_read = fread(output, 1, output_size - 1, fp);
             output[bytes_read] = '\0';
@@ -65,7 +65,7 @@ void test_help_option(void) {
 
     test_start("help option");
 
-    exit_code = run_ftntoss_command("--help", output, sizeof(output));
+    exit_code = run_fntosser_command("--help", output, sizeof(output));
 
     if (exit_code == 0 && strstr(output, "Usage:") != NULL) {
         test_pass();
@@ -80,9 +80,9 @@ void test_version_option(void) {
 
     test_start("version option");
 
-    exit_code = run_ftntoss_command("--version", output, sizeof(output));
+    exit_code = run_fntosser_command("--version", output, sizeof(output));
 
-    if (exit_code == 0 && strstr(output, "ftntoss") != NULL) {
+    if (exit_code == 0 && strstr(output, "fntosser") != NULL) {
         test_pass();
     } else {
         test_fail("Version option did not work correctly");
@@ -95,7 +95,7 @@ void test_missing_config_error(void) {
 
     test_start("missing config error");
 
-    exit_code = run_ftntoss_command("", output, sizeof(output));
+    exit_code = run_fntosser_command("", output, sizeof(output));
 
     if (exit_code != 0 && strstr(output, "Configuration file is required") != NULL) {
         test_pass();
@@ -110,7 +110,7 @@ void test_invalid_config_file(void) {
 
     test_start("invalid config file");
 
-    exit_code = run_ftntoss_command("-c /nonexistent/config.ini", output, sizeof(output));
+    exit_code = run_fntosser_command("-c /nonexistent/config.ini", output, sizeof(output));
 
     if (exit_code != 0) {
         test_pass();
@@ -125,7 +125,7 @@ void test_valid_config_single_shot(void) {
 
     test_start("valid config single shot");
 
-    exit_code = run_ftntoss_command("-c " TEST_CONFIG_FILE, output, sizeof(output));
+    exit_code = run_fntosser_command("-c " TEST_CONFIG_FILE, output, sizeof(output));
 
     if (exit_code == 0) {
         test_pass();
@@ -140,7 +140,7 @@ void test_verbose_mode(void) {
 
     test_start("verbose mode");
 
-    exit_code = run_ftntoss_command("-c " TEST_CONFIG_FILE " -v", output, sizeof(output));
+    exit_code = run_fntosser_command("-c " TEST_CONFIG_FILE " -v", output, sizeof(output));
 
     if (exit_code == 0) {
         test_pass();
@@ -155,7 +155,7 @@ void test_invalid_sleep_interval(void) {
 
     test_start("invalid sleep interval");
 
-    exit_code = run_ftntoss_command("-s -1", output, sizeof(output));
+    exit_code = run_fntosser_command("-s -1", output, sizeof(output));
 
     if (exit_code != 0 && strstr(output, "Invalid sleep interval") != NULL) {
         test_pass();
@@ -170,7 +170,7 @@ void test_unknown_option(void) {
 
     test_start("unknown option");
 
-    exit_code = run_ftntoss_command("--unknown-option", output, sizeof(output));
+    exit_code = run_fntosser_command("--unknown-option", output, sizeof(output));
 
     if (exit_code != 0 && strstr(output, "Unknown option") != NULL) {
         test_pass();

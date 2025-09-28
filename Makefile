@@ -18,11 +18,11 @@ SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.
 OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Test programs
-TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_ftntoss.c $(TESTDIR)/test_dupecheck.c $(TESTDIR)/test_router.c $(TESTDIR)/test_storage.c $(TESTDIR)/test_integration.c
+TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_fntosser.c $(TESTDIR)/test_dupecheck.c $(TESTDIR)/test_router.c $(TESTDIR)/test_storage.c $(TESTDIR)/test_integration.c
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs
-EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/ftntoss.c
+EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c
 EXAMPLE_BINARIES = $(EXAMPLE_SOURCES:$(SRCDIR)/%.c=$(BINDIR)/%)
 
 .PHONY: all clean test examples
@@ -82,8 +82,8 @@ install: all
 	install -m 644 include/ftn.h $(DESTDIR)$(PREFIX)/include/
 	install -m 644 include/ftn/*.h $(DESTDIR)$(PREFIX)/include/ftn/
 	install -m 755 $(EXAMPLE_BINARIES) $(DESTDIR)$(PREFIX)/bin/
-	install -m 644 docs/ftntoss.1 $(DESTDIR)$(PREFIX)/share/man/man1/
-	install -m 644 examples/ftntoss.ini $(DESTDIR)$(PREFIX)/share/doc/libftn/
+	install -m 644 docs/fntosser.1 $(DESTDIR)$(PREFIX)/share/man/man1/
+	install -m 644 examples/fntosser.ini $(DESTDIR)$(PREFIX)/share/doc/libftn/
 	@echo "Installation complete."
 
 .SUFFIXES:

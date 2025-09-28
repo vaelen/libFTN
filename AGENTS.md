@@ -1,17 +1,17 @@
 
-## ftntoss specific information
+## fntosser specific information
 
 ### Tosser architecture overview
-The `ftntoss` utility is a FidoNet message tosser that can run in single-shot or daemon mode. It is configured via an INI file that specifies the node, networks, mail, news, logging, and daemon settings.
+The `fntosser` utility is a FidoNet message tosser that can run in single-shot or daemon mode. It is configured via an INI file that specifies the node, networks, mail, news, logging, and daemon settings.
 
 ### Testing procedures
-The `ftntoss` utility has its own test suite in `tests/test_ftntoss.c`. It also has a set of integration test scripts in the `tests` directory (`run_integration_tests.sh`, `setup_test_env.sh`, `cleanup_test_env.sh`).
+The `fntosser` utility has its own test suite in `tests/test_fntosser.c`. It also has a set of integration test scripts in the `tests` directory (`run_integration_tests.sh`, `setup_test_env.sh`, `cleanup_test_env.sh`).
 
 ### Configuration management
-The configuration for `ftntoss` is handled by `src/config.c` and defined in `include/ftn/config.h`. The configuration includes sections for `[node]`, `[news]`, `[mail]`, `[logging]`, `[daemon]`, and one section for each network.
+The configuration for `fntosser` is handled by `src/config.c` and defined in `include/ftn/config.h`. The configuration includes sections for `[node]`, `[news]`, `[mail]`, `[logging]`, `[daemon]`, and one section for each network.
 
 ### Debugging techniques
-The `ftntoss` utility uses the logging library in `src/log.c`. The log level can be set in the configuration file or with the `-v` command-line option. In daemon mode, it responds to `SIGUSR2` to toggle debug logging.
+The `fntosser` utility uses the logging library in `src/log.c`. The log level can be set in the configuration file or with the `-v` command-line option. In daemon mode, it responds to `SIGUSR2` to toggle debug logging.
 mpatibility layer for non-ANSI/non-POSIX environments
 
 ### Key Data Structures
@@ -24,7 +24,7 @@ mpatibility layer for non-ANSI/non-POSIX environments
 
 All utilities are independent programs that link against the core library:
 
-- **`ftntoss`**: A powerful FidoNet message tosser with daemon support.
+- **`fntosser`**: A powerful FidoNet message tosser with daemon support.
 - **Conversion tools**: `pkt2mail`, `pkt2news`, `msg2pkt` - Format conversion between FTN and Internet standards
 - **Packet tools**: `pktview`, `pktlist`, `pktcreate`, `pktbundle` - Packet inspection and manipulation
 - **Nodelist tools**: `nlview`, `nllookup` - Network directory operations

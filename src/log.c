@@ -23,7 +23,7 @@ void ftn_log_init(ftn_log_level_t level, int use_syslog_flag, const char* ident)
     use_syslog = use_syslog_flag;
 
     if (use_syslog) {
-        openlog(ident ? ident : "ftntoss", LOG_PID | LOG_CONS, LOG_DAEMON);
+        openlog(ident ? ident : "fntosser", LOG_PID | LOG_CONS, LOG_DAEMON);
     }
 }
 

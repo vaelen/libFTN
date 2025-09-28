@@ -2,7 +2,7 @@
 
 In a FidoNet network, the "tosser" is a piece of software that processes incoming packets and distributes messages to their proper destinations.
 
-The libftn tosser is called `ftntoss`.
+The libftn tosser is called `fntosser`.
 
 ## Main Functions
 
@@ -24,7 +24,7 @@ The tosser has two modes of operation: single shot and continuous.
 ## Command-Line Options
 
 ```bash
-./bin/ftntoss [options]
+./bin/fntosser [options]
 
 Options:
   -c, --config FILE     Configuration file path (required)
@@ -37,7 +37,7 @@ Options:
 
 ## Signals
 
-When running in daemon mode, `ftntoss` responds to the following signals:
+When running in daemon mode, `fntosser` responds to the following signals:
 
 - `SIGHUP`: Reloads the configuration file.
 - `SIGTERM`, `SIGINT`: Shuts down gracefully.

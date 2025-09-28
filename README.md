@@ -74,11 +74,11 @@ Example:
   ./bin/msg2pkt -s sent -d mynet.org outbound *.txt
 ```
 
-### ftntoss
+### fntosser
 A powerful FidoNet message tosser that processes incoming FTN packets and distributes messages. It can run in a single-shot mode or as a daemon.
 
 ```bash
-./bin/ftntoss [options]
+./bin/fntosser [options]
 
 Options:
   -c, --config FILE     Configuration file path (required)

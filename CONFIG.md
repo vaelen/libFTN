@@ -40,12 +40,12 @@ This section configures the logging options.
 - `level`: The log level. Can be `debug`, `info`, `warning`, `error`, or `critical`. Default is `info`.
 - `use_syslog`: If `yes`, log to syslog in daemon mode. Default is `no`.
 - `log_file`: The path to the log file when not using syslog. Default is standard output.
-- `ident`: The identifier to use for syslog messages. Default is `ftntoss`.
+- `ident`: The identifier to use for syslog messages. Default is `fntosser`.
 
 ### [daemon]
 This section configures the daemon mode.
 
-- `pid_file`: The path to the PID file. Default is `/var/run/ftntoss.pid`.
+- `pid_file`: The path to the PID file. Default is `/var/run/fntosser.pid`.
 - `sleep_interval`: The sleep interval in seconds between processing cycles. Default is `60`.
 
 ### Network Sections
@@ -90,10 +90,10 @@ sent = /var/mail/%USER%/.Sent
 [logging]
 level = info
 use_syslog = yes
-ident = ftntoss
+ident = fntosser
 
 [daemon]
-pid_file = /var/run/ftntoss.pid
+pid_file = /var/run/fntosser.pid
 sleep_interval = 60
 
 [fidonet]
