@@ -96,8 +96,15 @@ typedef struct {
 
 static ftn_global_stats_t global_stats = {0};
 
-void ftn_log_init(ftn_log_level_t level, int use_syslog, const char* ident);
-void ftn_log_close(void);
+/* Logging compatibility function */
+static void ftn_log_init_compat(ftn_log_level_t level, int use_syslog, const char* ident) {
+    ftn_logging_config_t config = {0};
+    config.level = level;
+    config.use_syslog = use_syslog;
+    config.ident = (char*)ident; /* Safe cast for compatibility */
+    ftn_log_init(&config);
+}
+/* Use new cleanup function */
 
 /* Function prototypes */
 static ftn_error_t ensure_directories_exist(const ftn_network_config_t* network);
@@ -325,7 +332,7 @@ static void reload_configuration(void) {
     if (global_config->logging) {
         ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
         int use_syslog = global_config->logging->use_syslog;
-        ftn_log_init(log_level, use_syslog, global_config->logging->ident);
+        ftn_log_init_compat(log_level, use_syslog, global_config->logging->ident);
     }
 
     log_info("Configuration reloaded successfully");
@@ -889,7 +896,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Initialize logging early */
-    ftn_log_init(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "fntosser");
+    ftn_log_init_compat(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "fntosser");
 
     log_info("FTN Tosser starting up");
     logf_debug("Configuration file: %s", config_file_path);
@@ -919,7 +926,7 @@ int main(int argc, char* argv[]) {
     if (global_config->logging) {
         ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
         int use_syslog = global_config->logging->use_syslog;
-        ftn_log_init(log_level, use_syslog, global_config->logging->ident);
+        ftn_log_init_compat(log_level, use_syslog, global_config->logging->ident);
     }
 
     /* Determine sleep interval, command-line overrides config */
@@ -946,7 +953,7 @@ int main(int argc, char* argv[]) {
 
         /* In daemon mode, re-init logging to syslog if configured */
         if (global_config->logging && global_config->logging->use_syslog) {
-            ftn_log_init(global_config->logging->level, 1, global_config->logging->ident);
+            ftn_log_init_compat(global_config->logging->level, 1, global_config->logging->ident);
         }
         logf_info("Process daemonized. PID file: %s", pid_file ? pid_file : "none");
     }
@@ -965,7 +972,7 @@ int main(int argc, char* argv[]) {
     }
     ftn_config_free(global_config);
     log_info("FTN Tosser shutting down");
-    ftn_log_close();
+    ftn_log_cleanup();
 
     return result;
 }

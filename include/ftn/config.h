@@ -62,6 +62,8 @@ typedef struct {
 typedef struct {
     char* pid_file;
     int sleep_interval;
+    int max_connections;        /* Maximum concurrent connections */
+    int poll_interval;          /* Default polling interval in seconds */
 } ftn_daemon_config_t;
 
 typedef struct {
@@ -77,6 +79,16 @@ typedef struct {
     char* processed;
     char* bad;
     char* duplicate_db;
+    /* Mailer-specific fields */
+    char* hub_hostname;         /* TCP hostname for binkp connection */
+    int hub_port;               /* TCP port (default 24554) */
+    char* password;             /* Session password */
+    int poll_frequency;         /* Poll interval in seconds */
+    int use_cram;               /* Use CRAM authentication */
+    int use_compression;        /* Enable compression */
+    int use_crc;                /* Enable CRC verification */
+    int use_nr_mode;            /* Enable Non-Reliable mode */
+    char* outbound_path;        /* BSO outbound directory */
 } ftn_network_config_t;
 
 typedef struct {
@@ -112,7 +124,9 @@ typedef struct {
 ftn_config_t* ftn_config_new(void);
 void ftn_config_free(ftn_config_t* config);
 ftn_error_t ftn_config_load(ftn_config_t* config, const char* filename);
+ftn_error_t ftn_config_reload(ftn_config_t* config, const char* filename);
 ftn_error_t ftn_config_validate(const ftn_config_t* config);
+ftn_error_t ftn_config_validate_mailer(const ftn_config_t* config);
 
 /* Path templating functions */
 char* ftn_config_expand_path(const char* template, const char* user, const char* network);

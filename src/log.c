@@ -8,8 +8,21 @@
 #include "ftn/log.h"
 #include "ftn/compat.h"
 
+/* Include config types directly to avoid circular dependencies */
+#include "ftn/log_levels.h"
+
+typedef struct {
+    char* level_str;
+    ftn_log_level_t level;
+    int use_syslog;
+    char* log_file;
+    char* ident;
+} ftn_logging_config_t;
+
 static ftn_log_level_t current_log_level = FTN_LOG_INFO;
 static int use_syslog = 0;
+static FILE* log_file = NULL;
+static char* log_ident = NULL;
 
 /* Custom vsyslog implementation */
 static void ftn_vsyslog(int priority, const char *format, va_list args) {
@@ -18,19 +31,66 @@ static void ftn_vsyslog(int priority, const char *format, va_list args) {
     syslog(priority, "%s", buffer);
 }
 
-void ftn_log_init(ftn_log_level_t level, int use_syslog_flag, const char* ident) {
-    current_log_level = level;
-    use_syslog = use_syslog_flag;
+void ftn_log_init(const void* config_ptr) {
+    const ftn_logging_config_t* config = (const ftn_logging_config_t*)config_ptr;
+    if (config) {
+        current_log_level = config->level;
+        use_syslog = config->use_syslog;
 
-    if (use_syslog) {
-        openlog(ident ? ident : "fntosser", LOG_PID | LOG_CONS, LOG_DAEMON);
+        /* Store identity string */
+        if (log_ident) {
+            free(log_ident);
+            log_ident = NULL;
+        }
+        if (config->ident) {
+            log_ident = malloc(strlen(config->ident) + 1);
+            if (log_ident) {
+                strcpy(log_ident, config->ident);
+            }
+        }
+
+        /* Open log file if specified */
+        if (config->log_file) {
+            log_file = fopen(config->log_file, "a");
+            if (!log_file) {
+                fprintf(stderr, "Warning: Could not open log file %s\n", config->log_file);
+            }
+        }
+
+        /* Initialize syslog if requested */
+        if (use_syslog) {
+            openlog(log_ident ? log_ident : "fnmailer", LOG_PID | LOG_CONS, LOG_DAEMON);
+        }
+    } else {
+        /* Default configuration */
+        current_log_level = FTN_LOG_INFO;
+        use_syslog = 0;
+        log_file = NULL;
     }
 }
 
-void ftn_log_close(void) {
+void ftn_log_cleanup(void) {
     if (use_syslog) {
         closelog();
     }
+
+    if (log_file) {
+        fclose(log_file);
+        log_file = NULL;
+    }
+
+    if (log_ident) {
+        free(log_ident);
+        log_ident = NULL;
+    }
+}
+
+ftn_log_level_t ftn_log_get_level(void) {
+    return current_log_level;
+}
+
+void ftn_log_set_level(ftn_log_level_t level) {
+    current_log_level = level;
 }
 
 static void get_log_level_str(ftn_log_level_t level, const char** level_str, int* syslog_level) {
@@ -83,9 +143,15 @@ void ftn_log(ftn_log_level_t level, const char* message) {
         tm_info = localtime(&now);
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
-        output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
-        fprintf(output, "[%s] %s: %s\n", timestamp, level_str, message);
-        fflush(output);
+        /* Use log file if available, otherwise console */
+        if (log_file) {
+            fprintf(log_file, "[%s] %s: %s\n", timestamp, level_str, message);
+            fflush(log_file);
+        } else {
+            output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
+            fprintf(output, "[%s] %s: %s\n", timestamp, level_str, message);
+            fflush(output);
+        }
     }
 }
 
@@ -110,11 +176,19 @@ void ftn_vlogf(ftn_log_level_t level, const char* format, va_list args) {
         tm_info = localtime(&now);
         strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
-        output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
-        fprintf(output, "[%s] %s: ", timestamp, level_str);
-        vfprintf(output, format, args);
-        fprintf(output, "\n");
-        fflush(output);
+        /* Use log file if available, otherwise console */
+        if (log_file) {
+            fprintf(log_file, "[%s] %s: ", timestamp, level_str);
+            vfprintf(log_file, format, args);
+            fprintf(log_file, "\n");
+            fflush(log_file);
+        } else {
+            output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
+            fprintf(output, "[%s] %s: ", timestamp, level_str);
+            vfprintf(output, format, args);
+            fprintf(output, "\n");
+            fflush(output);
+        }
     }
 }
 
@@ -154,6 +228,42 @@ void logf_error(const char* format, ...) {
 }
 
 void logf_critical(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    ftn_vlogf(FTN_LOG_CRITICAL, format, args);
+    va_end(args);
+}
+
+/* Convenience functions for mailer */
+void ftn_log_debug(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    ftn_vlogf(FTN_LOG_DEBUG, format, args);
+    va_end(args);
+}
+
+void ftn_log_info(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    ftn_vlogf(FTN_LOG_INFO, format, args);
+    va_end(args);
+}
+
+void ftn_log_warning(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    ftn_vlogf(FTN_LOG_WARNING, format, args);
+    va_end(args);
+}
+
+void ftn_log_error(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    ftn_vlogf(FTN_LOG_ERROR, format, args);
+    va_end(args);
+}
+
+void ftn_log_critical(const char* format, ...) {
     va_list args;
     va_start(args, format);
     ftn_vlogf(FTN_LOG_CRITICAL, format, args);

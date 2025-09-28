@@ -47,7 +47,14 @@ typedef enum {
     FTN_ERROR_INVALID_PARAMETER,
     FTN_ERROR_INVALID_FORMAT,
     FTN_ERROR_FILE_NOT_FOUND,
-    FTN_ERROR_FILE_ACCESS
+    FTN_ERROR_FILE_ACCESS,
+    FTN_ERROR_NETWORK,
+    FTN_ERROR_NOT_CONNECTED,
+    FTN_ERROR_CONNECTION_CLOSED,
+    FTN_ERROR_WOULD_BLOCK,
+    FTN_ERROR_TIMEOUT,
+    FTN_ERROR_BUFFER_TOO_SMALL,
+    FTN_ERROR_FILE_IO
 } ftn_error_t;
 
 /* FTN Address Structure */
@@ -66,6 +73,7 @@ typedef struct {
 #include "ftn/config.h"
 #include "ftn/router.h"
 #include "ftn/storage.h"
+#include "ftn/net.h"
 
 /* Utility Functions */
 void ftn_trim(char* str);

@@ -481,6 +481,10 @@ void ftn_config_free(ftn_config_t* config) {
             if (config->networks[i].processed) free(config->networks[i].processed);
             if (config->networks[i].bad) free(config->networks[i].bad);
             if (config->networks[i].duplicate_db) free(config->networks[i].duplicate_db);
+            /* Free mailer-specific fields */
+            if (config->networks[i].hub_hostname) free(config->networks[i].hub_hostname);
+            if (config->networks[i].password) free(config->networks[i].password);
+            if (config->networks[i].outbound_path) free(config->networks[i].outbound_path);
         }
         free(config->networks);
     }
@@ -662,6 +666,8 @@ static ftn_error_t ftn_config_load_daemon_section(ftn_config_t* config, const ft
 
     /* Set defaults */
     config->daemon->sleep_interval = 60;
+    config->daemon->max_connections = 10;
+    config->daemon->poll_interval = 300;
 
     value = ftn_config_ini_get_value(ini, "daemon", "pid_file");
     if (value) {
@@ -674,6 +680,22 @@ static ftn_error_t ftn_config_load_daemon_section(ftn_config_t* config, const ft
         config->daemon->sleep_interval = atoi(value);
         if (config->daemon->sleep_interval <= 0) {
             config->daemon->sleep_interval = 60;
+        }
+    }
+
+    value = ftn_config_ini_get_value(ini, "daemon", "max_connections");
+    if (value) {
+        config->daemon->max_connections = atoi(value);
+        if (config->daemon->max_connections <= 0) {
+            config->daemon->max_connections = 10;
+        }
+    }
+
+    value = ftn_config_ini_get_value(ini, "daemon", "poll_interval");
+    if (value) {
+        config->daemon->poll_interval = atoi(value);
+        if (config->daemon->poll_interval <= 0) {
+            config->daemon->poll_interval = 300;
         }
     }
 
@@ -778,6 +800,60 @@ static ftn_error_t ftn_config_load_network_sections(ftn_config_t* config, const 
             if (value) {
                 net->duplicate_db = ftn_config_strdup(value);
                 if (!net->duplicate_db) return FTN_ERROR_NOMEM;
+            }
+
+            /* Load mailer-specific settings */
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "hub_hostname");
+            if (value) {
+                net->hub_hostname = ftn_config_strdup(value);
+                if (!net->hub_hostname) return FTN_ERROR_NOMEM;
+            }
+
+            net->hub_port = 24554; /* Default binkp port */
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "hub_port");
+            if (value) {
+                net->hub_port = atoi(value);
+                if (net->hub_port <= 0 || net->hub_port > 65535) {
+                    net->hub_port = 24554;
+                }
+            }
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "password");
+            if (value) {
+                net->password = ftn_config_strdup(value);
+                if (!net->password) return FTN_ERROR_NOMEM;
+            }
+
+            net->poll_frequency = 3600; /* Default 1 hour */
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "poll_frequency");
+            if (value) {
+                net->poll_frequency = atoi(value);
+                if (net->poll_frequency <= 0) {
+                    net->poll_frequency = 3600;
+                }
+            }
+
+            /* Boolean flags - default to 0 (false) */
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "use_cram");
+            net->use_cram = (value && (ftn_config_strcasecmp(value, "yes") == 0 ||
+                           ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) ? 1 : 0;
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "use_compression");
+            net->use_compression = (value && (ftn_config_strcasecmp(value, "yes") == 0 ||
+                                  ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) ? 1 : 0;
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "use_crc");
+            net->use_crc = (value && (ftn_config_strcasecmp(value, "yes") == 0 ||
+                          ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) ? 1 : 0;
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "use_nr_mode");
+            net->use_nr_mode = (value && (ftn_config_strcasecmp(value, "yes") == 0 ||
+                              ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) ? 1 : 0;
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "outbound_path");
+            if (value) {
+                net->outbound_path = ftn_config_strdup(value);
+                if (!net->outbound_path) return FTN_ERROR_NOMEM;
             }
 
             config->network_count++;
@@ -892,4 +968,158 @@ const ftn_network_config_t* ftn_config_get_network(const ftn_config_t* config, c
     }
 
     return NULL;
+}
+
+ftn_error_t ftn_config_reload(ftn_config_t* config, const char* filename) {
+    ftn_config_t* new_config;
+    ftn_error_t result;
+    /* Save original data */
+    ftn_node_config_t* old_node;
+    ftn_news_config_t* old_news;
+    ftn_mail_config_t* old_mail;
+    ftn_logging_config_t* old_logging;
+    ftn_daemon_config_t* old_daemon;
+    ftn_network_config_t* old_networks;
+    size_t old_network_count;
+
+    if (!config || !filename) return FTN_ERROR_INVALID_PARAMETER;
+
+    new_config = ftn_config_new();
+    if (!new_config) return FTN_ERROR_NOMEM;
+
+    result = ftn_config_load(new_config, filename);
+    if (result != FTN_OK) {
+        ftn_config_free(new_config);
+        return result;
+    }
+
+    result = ftn_config_validate(new_config);
+    if (result != FTN_OK) {
+        ftn_config_free(new_config);
+        return result;
+    }
+
+    old_node = config->node;
+    old_news = config->news;
+    old_mail = config->mail;
+    old_logging = config->logging;
+    old_daemon = config->daemon;
+    old_networks = config->networks;
+    old_network_count = config->network_count;
+
+    /* Copy new data */
+    config->node = new_config->node;
+    config->news = new_config->news;
+    config->mail = new_config->mail;
+    config->logging = new_config->logging;
+    config->daemon = new_config->daemon;
+    config->networks = new_config->networks;
+    config->network_count = new_config->network_count;
+
+    /* Clean up new config structure without freeing the data */
+    new_config->node = NULL;
+    new_config->news = NULL;
+    new_config->mail = NULL;
+    new_config->logging = NULL;
+    new_config->daemon = NULL;
+    new_config->networks = NULL;
+    new_config->network_count = 0;
+    ftn_config_free(new_config);
+
+    /* Free old data */
+    if (old_node) {
+        size_t i;
+        if (old_node->name) free(old_node->name);
+        if (old_node->sysop) free(old_node->sysop);
+        if (old_node->sysop_name) free(old_node->sysop_name);
+        if (old_node->email) free(old_node->email);
+        if (old_node->www) free(old_node->www);
+        if (old_node->telnet) free(old_node->telnet);
+        if (old_node->networks) {
+            for (i = 0; i < old_node->network_count; i++) {
+                if (old_node->networks[i]) {
+                    free(old_node->networks[i]);
+                }
+            }
+            free(old_node->networks);
+        }
+        free(old_node);
+    }
+
+    if (old_news) {
+        if (old_news->path) free(old_news->path);
+        free(old_news);
+    }
+
+    if (old_mail) {
+        if (old_mail->inbox) free(old_mail->inbox);
+        if (old_mail->outbox) free(old_mail->outbox);
+        if (old_mail->sent) free(old_mail->sent);
+        free(old_mail);
+    }
+
+    if (old_logging) {
+        if (old_logging->level_str) free(old_logging->level_str);
+        if (old_logging->log_file) free(old_logging->log_file);
+        if (old_logging->ident) free(old_logging->ident);
+        free(old_logging);
+    }
+
+    if (old_daemon) {
+        if (old_daemon->pid_file) free(old_daemon->pid_file);
+        free(old_daemon);
+    }
+
+    if (old_networks) {
+        size_t i;
+        for (i = 0; i < old_network_count; i++) {
+            if (old_networks[i].section_name) free(old_networks[i].section_name);
+            if (old_networks[i].name) free(old_networks[i].name);
+            if (old_networks[i].domain) free(old_networks[i].domain);
+            if (old_networks[i].address_str) free(old_networks[i].address_str);
+            if (old_networks[i].hub_str) free(old_networks[i].hub_str);
+            if (old_networks[i].inbox) free(old_networks[i].inbox);
+            if (old_networks[i].outbox) free(old_networks[i].outbox);
+            if (old_networks[i].processed) free(old_networks[i].processed);
+            if (old_networks[i].bad) free(old_networks[i].bad);
+            if (old_networks[i].duplicate_db) free(old_networks[i].duplicate_db);
+            if (old_networks[i].hub_hostname) free(old_networks[i].hub_hostname);
+            if (old_networks[i].password) free(old_networks[i].password);
+            if (old_networks[i].outbound_path) free(old_networks[i].outbound_path);
+        }
+        free(old_networks);
+    }
+
+    return FTN_OK;
+}
+
+ftn_error_t ftn_config_validate_mailer(const ftn_config_t* config) {
+    size_t i;
+    ftn_error_t result;
+
+    if (!config) return FTN_ERROR_INVALID_PARAMETER;
+
+    /* Validate basic configuration first */
+    result = ftn_config_validate(config);
+    if (result != FTN_OK) return result;
+
+    /* Daemon section is required for mailer */
+    if (!config->daemon) return FTN_ERROR_INVALID;
+
+    /* Validate each network for mailer requirements */
+    for (i = 0; i < config->network_count; i++) {
+        const ftn_network_config_t* net = &config->networks[i];
+
+        /* Hub hostname is required for mailer operation */
+        if (!net->hub_hostname || strlen(net->hub_hostname) == 0) {
+            return FTN_ERROR_INVALID;
+        }
+
+        /* Outbound path is required */
+        if (!net->outbound_path || strlen(net->outbound_path) == 0) {
+            return FTN_ERROR_INVALID;
+        }
+    }
+
+    return FTN_OK;
 }
