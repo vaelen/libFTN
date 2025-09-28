@@ -1,4 +1,4 @@
-# FTNTOSS - FidoNet Tosser
+# FNTOSSER - FidoNet Tosser
 
 In a FidoNet network, the "tosser" is a piece of software that processes incoming packets and distributes messages to their proper destinations.
 

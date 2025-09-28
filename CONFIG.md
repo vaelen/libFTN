@@ -48,6 +48,11 @@ This section configures the daemon mode.
 - `pid_file`: The path to the PID file. Default is `/var/run/fntosser.pid`.
 - `sleep_interval`: The sleep interval in seconds between processing cycles. Default is `60`.
 
+### [binkp]
+This section configures the binkp client.
+
+- `path`: The path to the binkp folder.
+
 ### Network Sections
 One section for each FTN network listed in the `networks` key of the `[node]` section.
 
@@ -60,12 +65,8 @@ One section for each FTN network listed in the `networks` key of the `[node]` se
 - `processed`: The path to the directory where processed packets are moved.
 - `bad`: The path to the directory where malformed packets are moved.
 - `duplicate_db`: The path to the duplicate message database for this network.
-- `binkp.address`: The address and port of the hub's binkp server. Default port is 24554.
-- `binkp.password`: The password to use when connecting to the binkp server.
-- `binkp.inbound`: The path to the binkp inbound folder for this network.
-- `binkp.outbound`: The path to the binkp outbound folder for this network.
-- `binkp.processed`: The path to the directory where processed binkp files are moved.
-- `binkp.bad`: The path to the directiry where malformed binkp files are moved.
+- `binkp`: The address and port of the hub's binkp server. Default port is 24554.
+- `binkp_password`: The password to use when connecting to the binkp server.
 
 ## Example Config File
 
@@ -96,6 +97,9 @@ ident = fntosser
 pid_file = /var/run/fntosser.pid
 sleep_interval = 60
 
+[binkp]
+path = /var/spool/ftn/binkp
+
 [fidonet]
 name = Fidonet
 domain = fidonet.org
@@ -106,12 +110,8 @@ outbox = /var/spool/ftn/fidonet/outbox
 processed = /var/spool/ftn/fidonet/processed
 bad = /var/spool/ftn/fidonet/bad
 duplicate_db = /var/spool/ftn/fidonet/dupes.db
-binkp.address = binkp.fidonet.org
-binkp.password = password
-binkp.inbound = /var/spool/ftn/fidonet/binkp/inbound
-binkp.outbound = /var/spool/ftn/fidonet/binkp/outbound
-binkp.processed = /var/spool/ftn/fidonet/binkp/processed
-binkp.bad = /var/spool/ftn/fidonet/binkp/bad
+binkp = binkp.fidonet.org
+binkp_password = password
 
 [fsxnet]
 name = fsxNet
@@ -123,10 +123,6 @@ outbox = /var/spool/ftn/fsxnet/outbox
 processed = /var/spool/ftn/fsxnet/processed
 bad = /var/spool/ftn/fsxnet/bad
 duplicate_db = /var/spool/ftn/fsxnet/dupes.db
-binkp.address = agency.bbs.nz:24554
-binkp.password = password
-binkp.inbound = /var/spool/ftn/fsxnet/binkp/inbound
-binkp.outbound = /var/spool/ftn/fsxnet/binkp/outbound
-binkp.processed = /var/spool/ftn/fsxnet/binkp/processed
-binkp.bad = /var/spool/ftn/fsxnet/binkp/bad
+binkp = agency.bbs.nz:24554
+binkp_password = password
 ```
