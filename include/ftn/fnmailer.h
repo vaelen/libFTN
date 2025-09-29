@@ -28,14 +28,11 @@
 #include <signal.h>
 #include <time.h>
 
-/* Signal context for safe signal handling */
-typedef struct {
-    volatile sig_atomic_t shutdown_requested;
-    volatile sig_atomic_t reload_config;
-    volatile sig_atomic_t dump_stats;
-    volatile sig_atomic_t toggle_debug;
-    int signal_pipe[2];  /* Self-pipe for signal handling */
-} ftn_signal_context_t;
+/* Global signal flags - using same pattern as fntosser.c */
+extern volatile sig_atomic_t fnmailer_shutdown_requested;
+extern volatile sig_atomic_t fnmailer_reload_requested;
+extern volatile sig_atomic_t fnmailer_dump_stats_requested;
+extern volatile sig_atomic_t fnmailer_toggle_debug_requested;
 
 /* Network context for each configured network */
 typedef struct {
@@ -50,13 +47,13 @@ typedef struct {
 typedef struct {
     ftn_config_t* config;
     char* config_filename;
-    ftn_signal_context_t signals;
     ftn_network_context_t* networks;
     size_t network_count;
 
     /* Daemon settings */
     int daemon_mode;
     int verbose;
+    int sleep_interval;
     char* pid_file;
 
     /* Runtime state */
@@ -82,9 +79,9 @@ typedef struct {
 } ftn_mailer_options_t;
 
 /* Signal handling */
-ftn_error_t ftn_signal_init(ftn_signal_context_t* ctx);
-void ftn_signal_cleanup(ftn_signal_context_t* ctx);
-void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer);
+void ftn_mailer_setup_signals(void);
+void ftn_mailer_cleanup_signals(void);
+void ftn_mailer_check_signals(ftn_mailer_context_t* mailer);
 
 /* Mailer context management */
 ftn_mailer_context_t* ftn_mailer_context_new(void);

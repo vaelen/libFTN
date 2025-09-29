@@ -29,7 +29,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/select.h>
 #include <fcntl.h>
 #include <errno.h>
 #include "ftn.h"
@@ -37,113 +36,48 @@
 #include "ftn/log.h"
 #include "ftn/version.h"
 
-/* Global signal context for signal handlers */
-static ftn_signal_context_t* g_signal_context = NULL;
+/* Global signal flags - same pattern as fntosser.c */
+volatile sig_atomic_t fnmailer_shutdown_requested = 0;
+volatile sig_atomic_t fnmailer_reload_requested = 0;
+volatile sig_atomic_t fnmailer_dump_stats_requested = 0;
+volatile sig_atomic_t fnmailer_toggle_debug_requested = 0;
 
-/* Signal handlers */
-static void signal_handler_shutdown(int sig) {
-    char byte = 1;
-    int i = 0;
-    (void)sig; /* Suppress unused parameter warning */
-
-    if (g_signal_context) {
-        g_signal_context->shutdown_requested = 1;
-        /* Write to self-pipe to wake up main loop */
-        if (g_signal_context->signal_pipe[1] >= 0) {
-            i = write(g_signal_context->signal_pipe[1], &byte, 1);
-            (void)i;
-        }
-    }
+/* Signal handlers - same pattern as fntosser.c */
+static void fnmailer_handle_sigterm(int sig) {
+    (void)sig;
+    fnmailer_shutdown_requested = 1;
+    logf_info("Shutdown signal received, exiting gracefully");
 }
 
-static void signal_handler_reload(int sig) {
-    char byte = 2;
-    int i = 0;
-    (void)sig; /* Suppress unused parameter warning */
-
-    if (g_signal_context) {
-        g_signal_context->reload_config = 1;
-        if (g_signal_context->signal_pipe[1] >= 0) {
-            i = write(g_signal_context->signal_pipe[1], &byte, 1);
-            (void)i;
-        }
-    }
+static void fnmailer_handle_sighup(int sig) {
+    (void)sig;
+    fnmailer_reload_requested = 1;
+    logf_info("Reload signal received, will reload configuration");
 }
 
-static void signal_handler_stats(int sig) {
-    char byte = 3;
-    int i = 0;
-    (void)sig; /* Suppress unused parameter warning */
-
-    if (g_signal_context) {
-        g_signal_context->dump_stats = 1;
-        if (g_signal_context->signal_pipe[1] >= 0) {
-            i = write(g_signal_context->signal_pipe[1], &byte, 1);
-            (void)i;
-        }
-    }
+static void fnmailer_handle_sigusr1(int sig) {
+    (void)sig;
+    fnmailer_dump_stats_requested = 1;
+    logf_info("Statistics dump requested");
 }
 
-static void signal_handler_debug(int sig) {
-    char byte = 4;
-    int i = 0;
-    (void)sig; /* Suppress unused parameter warning */
-
-    if (g_signal_context) {
-        g_signal_context->toggle_debug = 1;
-        if (g_signal_context->signal_pipe[1] >= 0) {
-            i = write(g_signal_context->signal_pipe[1], &byte, 1);
-            (void)i;
-        }
-    }
+static void fnmailer_handle_sigusr2(int sig) {
+    (void)sig;
+    fnmailer_toggle_debug_requested = 1;
+    logf_info("Debug mode toggle requested");
 }
 
-/* Signal handling implementation */
-ftn_error_t ftn_signal_init(ftn_signal_context_t* ctx) {
-    int flags;
-
-    if (!ctx) {
-        return FTN_ERROR_INVALID_PARAMETER;
-    }
-
-    memset(ctx, 0, sizeof(ftn_signal_context_t));
-    ctx->signal_pipe[0] = -1;
-    ctx->signal_pipe[1] = -1;
-
-    /* Create self-pipe for signal handling */
-    if (pipe(ctx->signal_pipe) == -1) {
-        return FTN_ERROR_NETWORK;
-    }
-
-    /* Make write end non-blocking */
-    flags = fcntl(ctx->signal_pipe[1], F_GETFL);
-    if (flags == -1 || fcntl(ctx->signal_pipe[1], F_SETFL, flags | O_NONBLOCK) == -1) {
-        close(ctx->signal_pipe[0]);
-        close(ctx->signal_pipe[1]);
-        return FTN_ERROR_NETWORK;
-    }
-
-    /* Set global context for signal handlers */
-    g_signal_context = ctx;
-
-    /* Install signal handlers */
-    signal(SIGTERM, signal_handler_shutdown);
-    signal(SIGINT, signal_handler_shutdown);
-    signal(SIGHUP, signal_handler_reload);
-    signal(SIGUSR1, signal_handler_stats);
-    signal(SIGUSR2, signal_handler_debug);
-
-    /* Ignore SIGPIPE */
-    signal(SIGPIPE, SIG_IGN);
-
-    return FTN_OK;
+/* Signal handling implementation - same pattern as fntosser.c */
+void ftn_mailer_setup_signals(void) {
+    signal(SIGTERM, fnmailer_handle_sigterm);
+    signal(SIGINT, fnmailer_handle_sigterm); /* Treat INT as TERM */
+    signal(SIGHUP, fnmailer_handle_sighup);
+    signal(SIGUSR1, fnmailer_handle_sigusr1);
+    signal(SIGUSR2, fnmailer_handle_sigusr2);
+    signal(SIGPIPE, SIG_IGN); /* Ignore broken pipes */
 }
 
-void ftn_signal_cleanup(ftn_signal_context_t* ctx) {
-    if (!ctx) {
-        return;
-    }
-
+void ftn_mailer_cleanup_signals(void) {
     /* Restore default signal handlers */
     signal(SIGTERM, SIG_DFL);
     signal(SIGINT, SIG_DFL);
@@ -151,61 +85,37 @@ void ftn_signal_cleanup(ftn_signal_context_t* ctx) {
     signal(SIGUSR1, SIG_DFL);
     signal(SIGUSR2, SIG_DFL);
     signal(SIGPIPE, SIG_DFL);
-
-    /* Close signal pipe */
-    if (ctx->signal_pipe[0] >= 0) {
-        close(ctx->signal_pipe[0]);
-        ctx->signal_pipe[0] = -1;
-    }
-    if (ctx->signal_pipe[1] >= 0) {
-        close(ctx->signal_pipe[1]);
-        ctx->signal_pipe[1] = -1;
-    }
-
-    g_signal_context = NULL;
 }
 
-void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer) {
-    char buffer[256];
-    ssize_t bytes_read;
-
-    if (!ctx || ctx->signal_pipe[0] < 0) {
-        return;
-    }
-
-    /* Drain the signal pipe */
-    while ((bytes_read = read(ctx->signal_pipe[0], buffer, sizeof(buffer))) > 0) {
-        /* Signal received, flags are already set by handlers */
-    }
-
+void ftn_mailer_check_signals(ftn_mailer_context_t* mailer) {
     /* Handle shutdown request */
-    if (ctx->shutdown_requested) {
+    if (fnmailer_shutdown_requested) {
         if (mailer) {
             mailer->running = 0;
         }
         logf_info("Shutdown requested");
-        ctx->shutdown_requested = 0;
+        fnmailer_shutdown_requested = 0;
     }
 
     /* Handle config reload */
-    if (ctx->reload_config) {
+    if (fnmailer_reload_requested) {
         if (mailer) {
             ftn_mailer_reload_config(mailer);
         }
         logf_info("Configuration reloaded");
-        ctx->reload_config = 0;
+        fnmailer_reload_requested = 0;
     }
 
     /* Handle statistics dump */
-    if (ctx->dump_stats) {
+    if (fnmailer_dump_stats_requested) {
         if (mailer) {
             ftn_mailer_dump_statistics(mailer);
         }
-        ctx->dump_stats = 0;
+        fnmailer_dump_stats_requested = 0;
     }
 
     /* Handle debug toggle */
-    if (ctx->toggle_debug) {
+    if (fnmailer_toggle_debug_requested) {
         ftn_log_level_t current = ftn_log_get_level();
         if (current == FTN_LOG_DEBUG) {
             ftn_log_set_level(FTN_LOG_INFO);
@@ -214,7 +124,7 @@ void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer) {
             ftn_log_set_level(FTN_LOG_DEBUG);
             logf_info("Debug logging enabled");
         }
-        ctx->toggle_debug = 0;
+        fnmailer_toggle_debug_requested = 0;
     }
 }
 
@@ -234,9 +144,6 @@ void ftn_mailer_context_free(ftn_mailer_context_t* ctx) {
     if (!ctx) {
         return;
     }
-
-    /* Cleanup signal handling */
-    ftn_signal_cleanup(&ctx->signals);
 
     /* Free config */
     if (ctx->config) {
@@ -275,6 +182,7 @@ ftn_error_t ftn_mailer_context_init(ftn_mailer_context_t* ctx, const ftn_mailer_
     /* Copy options */
     ctx->daemon_mode = options->daemon_mode;
     ctx->verbose = options->verbose;
+    ctx->sleep_interval = options->sleep_interval;
 
     if (options->config_file) {
         ctx->config_filename = malloc(strlen(options->config_file) + 1);
@@ -307,12 +215,6 @@ ftn_error_t ftn_mailer_context_init(ftn_mailer_context_t* ctx, const ftn_mailer_
             return FTN_ERROR_NOMEM;
         }
         strcpy(ctx->pid_file, ctx->config->daemon->pid_file);
-    }
-
-    /* Initialize signal handling */
-    result = ftn_signal_init(&ctx->signals);
-    if (result != FTN_OK) {
-        return result;
     }
 
     /* Initialize network contexts */
@@ -718,13 +620,9 @@ ftn_error_t ftn_mailer_single_shot(ftn_mailer_context_t* ctx) {
 }
 
 ftn_error_t ftn_mailer_daemon_loop(ftn_mailer_context_t* ctx) {
-    fd_set read_fds;
-    struct timeval timeout;
-    int max_fd;
     time_t next_poll_time;
     time_t now;
-    time_t sleep_time;
-    int activity;
+    int i;
 
     if (!ctx) {
         return FTN_ERROR_INVALID_PARAMETER;
@@ -732,11 +630,16 @@ ftn_error_t ftn_mailer_daemon_loop(ftn_mailer_context_t* ctx) {
 
     logf_info("Starting daemon mode");
 
-    while (ctx->running) {
-        /* Check for signals */
-        ftn_signal_check(&ctx->signals, ctx);
+    /* Setup signal handlers */
+    ftn_mailer_setup_signals();
 
-        if (!ctx->running) {
+    while (ctx->running && !fnmailer_shutdown_requested) {
+        logf_debug("Starting processing cycle");
+
+        /* Check for signals */
+        ftn_mailer_check_signals(ctx);
+
+        if (!ctx->running || fnmailer_shutdown_requested) {
             break;
         }
 
@@ -746,34 +649,13 @@ ftn_error_t ftn_mailer_daemon_loop(ftn_mailer_context_t* ctx) {
 
         if (now >= next_poll_time) {
             ftn_mailer_poll_networks(ctx);
-            next_poll_time = ftn_mailer_calculate_next_poll(ctx);
         }
 
-        /* Setup select for signal pipe and timeout */
-        FD_ZERO(&read_fds);
-        max_fd = ctx->signals.signal_pipe[0];
-        FD_SET(ctx->signals.signal_pipe[0], &read_fds);
+        logf_debug("Processing cycle complete, sleeping for %d seconds", ctx->sleep_interval);
 
-        /* Calculate timeout until next poll */
-        sleep_time = next_poll_time - now;
-        if (sleep_time <= 0) {
-            sleep_time = 1;
-        }
-
-        timeout.tv_sec = sleep_time;
-        timeout.tv_usec = 0;
-
-        /* Wait for activity or timeout */
-        activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
-        if (activity > 0) {
-            /* Signal received, will be handled at top of loop */
-            continue;
-        } else if (activity == 0) {
-            /* Timeout - time to poll networks */
-            continue;
-        } else if (activity < 0 && errno != EINTR) {
-            logf_error("select() failed: %s", strerror(errno));
-            return FTN_ERROR_NETWORK;
+        /* Sleep with interruption check - same pattern as fntosser.c */
+        for (i = 0; i < ctx->sleep_interval && !fnmailer_shutdown_requested; i++) {
+            sleep(1);
         }
     }
 
