@@ -1,5 +1,5 @@
 /*
- * pktbundle - Bundle multiple packet files into a single packet
+ * pktjoin - Bundle multiple packet files into a single packet
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
@@ -10,7 +10,7 @@
 #include <time.h>
 
 static void print_version(void) {
-    printf("pktbundle (libFTN) %s\n", ftn_get_version());
+    printf("pktjoin (libFTN) %s\n", ftn_get_version());
     printf("%s\n", ftn_get_copyright());
     printf("License: %s\n", ftn_get_license());
 }

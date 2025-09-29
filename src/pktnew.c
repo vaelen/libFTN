@@ -1,5 +1,5 @@
 /*
- * pktcreate - Create a new FidoNet packet with messages
+ * pktnew - Create a new FidoNet packet with messages
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  */
 
@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 
 static void print_version(void) {
-    printf("pktcreate (libFTN) %s\n", ftn_get_version());
+    printf("pktnew (libFTN) %s\n", ftn_get_version());
     printf("%s\n", ftn_get_copyright());
     printf("License: %s\n", ftn_get_license());
 }
@@ -207,12 +207,12 @@ int main(int argc, char* argv[]) {
     
     if (is_echomail) {
         message->area = strdup(echo_area);
-        message->tearline = strdup("--- pktcreate 1.0");
-        message->origin = malloc(strlen("* Origin: Created with pktcreate (") + 32 + 2);
+        message->tearline = strdup("--- libFTN 1.0");
+        message->origin = malloc(strlen("* Origin: Created with libFTN (") + 32 + 2);
         if (message->origin) {
             char addr_str[32];
             ftn_address_to_string(&from_addr, addr_str, sizeof(addr_str));
-            sprintf(message->origin, "* Origin: Created with pktcreate (%s)", addr_str);
+            sprintf(message->origin, "* Origin: Created with libFTN (%s)", addr_str);
         }
         
         /* Add MSGID for echomail */

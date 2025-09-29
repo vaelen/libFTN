@@ -26,7 +26,7 @@ All utilities are independent programs that link against the core library:
 
 - **`fntosser`**: A powerful FidoNet message tosser with daemon support.
 - **Conversion tools**: `pkt2mail`, `pkt2news`, `msg2pkt` - Format conversion between FTN and Internet standards
-- **Packet tools**: `pktview`, `pktlist`, `pktcreate`, `pktbundle` - Packet inspection and manipulation
+- **Packet tools**: `pktview`, `pktlist`, `pktnew`, `pktjoin` - Packet inspection and manipulation
 - **Nodelist tools**: `nlview`, `nllookup` - Network directory operations
 
 ### Conversion System Design

@@ -92,10 +92,10 @@ Options:
 See `FTNTOSS.md` for more detailed documentation on configuration and usage.
 
 ### Other Utilities
-- **pktcreate**: Create new FidoNet packets with messages
+- *pktnew**: Create new FidoNet packets with messages
 - **pktview**: Display packet contents in human-readable format
 - **pktlist**: List messages in packet files
-- **pktbundle**: Bundle multiple packets together
+- **pktjoin**: Bundle multiple packets together
 - **nllookup**: Look up nodes in FidoNet nodelists
 - **nlview**: Display nodelist information
 

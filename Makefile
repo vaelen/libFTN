@@ -26,7 +26,7 @@ TEST_SOURCES = $(TESTDIR)/nodelist.c $(TESTDIR)/crc.c $(TESTDIR)/compat.c $(TEST
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs
-EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c $(SRCDIR)/fnmailer.c
+EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktnew.c $(SRCDIR)/pktjoin.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c $(SRCDIR)/fnmailer.c
 EXAMPLE_BINARIES = $(EXAMPLE_SOURCES:$(SRCDIR)/%.c=$(BINDIR)/%)
 
 .PHONY: all clean test examples zlib
