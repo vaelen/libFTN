@@ -45,49 +45,57 @@ static ftn_signal_context_t* g_signal_context = NULL;
 /* Signal handlers */
 static void signal_handler_shutdown(int sig) {
     char byte = 1;
+    int i = 0;
     (void)sig; /* Suppress unused parameter warning */
 
     if (g_signal_context) {
         g_signal_context->shutdown_requested = 1;
         /* Write to self-pipe to wake up main loop */
         if (g_signal_context->signal_pipe[1] >= 0) {
-            write(g_signal_context->signal_pipe[1], &byte, 1);
+            i = write(g_signal_context->signal_pipe[1], &byte, 1);
+            (void)i;
         }
     }
 }
 
 static void signal_handler_reload(int sig) {
     char byte = 2;
+    int i = 0;
     (void)sig; /* Suppress unused parameter warning */
 
     if (g_signal_context) {
         g_signal_context->reload_config = 1;
         if (g_signal_context->signal_pipe[1] >= 0) {
-            write(g_signal_context->signal_pipe[1], &byte, 1);
+            i = write(g_signal_context->signal_pipe[1], &byte, 1);
+            (void)i;
         }
     }
 }
 
 static void signal_handler_stats(int sig) {
     char byte = 3;
+    int i = 0;
     (void)sig; /* Suppress unused parameter warning */
 
     if (g_signal_context) {
         g_signal_context->dump_stats = 1;
         if (g_signal_context->signal_pipe[1] >= 0) {
-            write(g_signal_context->signal_pipe[1], &byte, 1);
+            i = write(g_signal_context->signal_pipe[1], &byte, 1);
+            (void)i;
         }
     }
 }
 
 static void signal_handler_debug(int sig) {
     char byte = 4;
+    int i = 0;
     (void)sig; /* Suppress unused parameter warning */
 
     if (g_signal_context) {
         g_signal_context->toggle_debug = 1;
         if (g_signal_context->signal_pipe[1] >= 0) {
-            write(g_signal_context->signal_pipe[1], &byte, 1);
+            i = write(g_signal_context->signal_pipe[1], &byte, 1);
+            (void)i;
         }
     }
 }
