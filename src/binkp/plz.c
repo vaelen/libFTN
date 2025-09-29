@@ -26,6 +26,8 @@
 #include <string.h>
 #include "ftn/binkp/plz.h"
 #include "ftn/log.h"
+#include "ftn/config.h"
+#include "zlib.h"
 
 /* Default buffer sizes */
 #define PLZ_DEFAULT_BUFFER_SIZE 8192
@@ -55,12 +57,34 @@ ftn_binkp_error_t ftn_plz_init(ftn_plz_context_t* ctx) {
         return BINKP_ERROR_BUFFER_TOO_SMALL;
     }
 
+    /* Initialize zlib streams */
+    ctx->compress_stream.zalloc = Z_NULL;
+    ctx->compress_stream.zfree = Z_NULL;
+    ctx->compress_stream.opaque = Z_NULL;
+    ctx->compress_initialized = 0;
+
+    ctx->decompress_stream.zalloc = Z_NULL;
+    ctx->decompress_stream.zfree = Z_NULL;
+    ctx->decompress_stream.opaque = Z_NULL;
+    ctx->decompress_initialized = 0;
+
     return BINKP_OK;
 }
 
 void ftn_plz_free(ftn_plz_context_t* ctx) {
     if (!ctx) {
         return;
+    }
+
+    /* Clean up zlib streams */
+    if (ctx->compress_initialized) {
+        deflateEnd(&ctx->compress_stream);
+        ctx->compress_initialized = 0;
+    }
+
+    if (ctx->decompress_initialized) {
+        inflateEnd(&ctx->decompress_stream);
+        ctx->decompress_initialized = 0;
     }
 
     if (ctx->compress_buffer) {
@@ -72,10 +96,6 @@ void ftn_plz_free(ftn_plz_context_t* ctx) {
         free(ctx->decompress_buffer);
         ctx->decompress_buffer = NULL;
     }
-
-    /* Note: In real implementation, would free zlib contexts here */
-    ctx->compress_ctx = NULL;
-    ctx->decompress_ctx = NULL;
 
     memset(ctx, 0, sizeof(ftn_plz_context_t));
 }
@@ -99,6 +119,37 @@ ftn_binkp_error_t ftn_plz_set_level(ftn_plz_context_t* ctx, ftn_plz_level_t leve
 
     ctx->compression_level = level;
     logf_debug("Set PLZ compression level to %s", ftn_plz_level_name(level));
+    return BINKP_OK;
+}
+
+ftn_binkp_error_t ftn_plz_configure_from_network(ftn_plz_context_t* ctx, const void* network_config) {
+    const ftn_network_config_t* net_config;
+    ftn_plz_mode_t effective_mode;
+
+    if (!ctx || !network_config) {
+        return BINKP_ERROR_INVALID_COMMAND;
+    }
+
+    net_config = (const ftn_network_config_t*)network_config;
+
+    /* Check if compression is enabled at all */
+    if (!net_config->use_compression) {
+        /* Compression disabled - set PLZ to none regardless of plz_mode setting */
+        effective_mode = PLZ_MODE_NONE;
+        logf_debug("Compression disabled via use_compression=no, PLZ set to none");
+    } else {
+        /* Compression enabled - use the configured PLZ mode */
+        effective_mode = (ftn_plz_mode_t)net_config->plz_mode;
+        logf_debug("Compression enabled via use_compression=yes, PLZ mode: %s",
+                   net_config->plz_mode_str ? net_config->plz_mode_str : "default");
+    }
+
+    /* Set the effective PLZ mode */
+    ftn_plz_set_mode(ctx, effective_mode);
+
+    /* Set the PLZ compression level */
+    ftn_plz_set_level(ctx, (ftn_plz_level_t)net_config->plz_level);
+
     return BINKP_OK;
 }
 
@@ -169,8 +220,9 @@ ftn_binkp_error_t ftn_plz_create_option(const ftn_plz_context_t* ctx, char** opt
 
 ftn_binkp_error_t ftn_plz_compress_data(ftn_plz_context_t* ctx, const uint8_t* input, size_t input_len,
                                         uint8_t** output, size_t* output_len) {
-    /* Simplified mock compression - in real implementation would use zlib */
-    size_t i;
+    uLongf compressed_len;
+    int zlib_level;
+    int result;
 
     if (!ctx || !input || !output || !output_len) {
         return BINKP_ERROR_INVALID_COMMAND;
@@ -187,39 +239,38 @@ ftn_binkp_error_t ftn_plz_compress_data(ftn_plz_context_t* ctx, const uint8_t* i
         return BINKP_OK;
     }
 
-    /* Mock compression: simple run-length encoding for demonstration */
-    *output = malloc(input_len + input_len / 2 + 16); /* Worst case expansion */
+    /* Map PLZ compression level to zlib level */
+    switch (ctx->compression_level) {
+        case PLZ_LEVEL_FAST:
+            zlib_level = Z_BEST_SPEED;
+            break;
+        case PLZ_LEVEL_BEST:
+            zlib_level = Z_BEST_COMPRESSION;
+            break;
+        case PLZ_LEVEL_NORMAL:
+        case PLZ_LEVEL_DEFAULT:
+        default:
+            zlib_level = Z_DEFAULT_COMPRESSION;
+            break;
+    }
+
+    /* Calculate maximum compressed size (worst case) */
+    compressed_len = compressBound(input_len);
+    *output = malloc(compressed_len);
     if (!*output) {
         return BINKP_ERROR_BUFFER_TOO_SMALL;
     }
 
-    *output_len = 0;
-    for (i = 0; i < input_len; i++) {
-        size_t run_length = 1;
-
-        /* Count consecutive identical bytes */
-        while (i + run_length < input_len && input[i] == input[i + run_length] && run_length < 255) {
-            run_length++;
-        }
-
-        if (run_length >= 3) {
-            /* Compress run */
-            (*output)[(*output_len)++] = 0xFF; /* Escape byte */
-            (*output)[(*output_len)++] = (uint8_t)run_length;
-            (*output)[(*output_len)++] = input[i];
-            i += run_length - 1;
-        } else {
-            /* Single byte */
-            if (input[i] == 0xFF) {
-                /* Escape literal 0xFF */
-                (*output)[(*output_len)++] = 0xFF;
-                (*output)[(*output_len)++] = 0x01;
-                (*output)[(*output_len)++] = 0xFF;
-            } else {
-                (*output)[(*output_len)++] = input[i];
-            }
-        }
+    /* Compress using zlib */
+    result = compress2(*output, &compressed_len, input, input_len, zlib_level);
+    if (result != Z_OK) {
+        free(*output);
+        *output = NULL;
+        logf_error("PLZ compression failed: zlib error %d", result);
+        return BINKP_ERROR_BUFFER_TOO_SMALL;
     }
+
+    *output_len = compressed_len;
 
     /* Update statistics */
     ctx->bytes_sent_uncompressed += input_len;
@@ -234,8 +285,9 @@ ftn_binkp_error_t ftn_plz_compress_data(ftn_plz_context_t* ctx, const uint8_t* i
 
 ftn_binkp_error_t ftn_plz_decompress_data(ftn_plz_context_t* ctx, const uint8_t* input, size_t input_len,
                                           uint8_t** output, size_t* output_len) {
-    /* Simplified mock decompression */
-    size_t i, out_pos;
+    uLongf decompressed_len;
+    int result;
+    size_t buffer_size;
 
     if (!ctx || !input || !output || !output_len) {
         return BINKP_ERROR_INVALID_COMMAND;
@@ -252,37 +304,40 @@ ftn_binkp_error_t ftn_plz_decompress_data(ftn_plz_context_t* ctx, const uint8_t*
         return BINKP_OK;
     }
 
-    /* Allocate output buffer (estimate 2x expansion for safety) */
-    *output = malloc(input_len * 2 + 256);
-    if (!*output) {
-        return BINKP_ERROR_BUFFER_TOO_SMALL;
+    /* Estimate decompressed size (start with 4x compression ratio estimate) */
+    buffer_size = input_len * 4;
+    if (buffer_size < PLZ_DEFAULT_BUFFER_SIZE) {
+        buffer_size = PLZ_DEFAULT_BUFFER_SIZE;
     }
 
-    /* Mock decompression: reverse of run-length encoding */
-    out_pos = 0;
-    for (i = 0; i < input_len; i++) {
-        if (input[i] == 0xFF && i + 2 < input_len) {
-            uint8_t run_length = input[i + 1];
-            uint8_t value = input[i + 2];
-
-            if (run_length == 1) {
-                /* Escaped literal 0xFF */
-                (*output)[out_pos++] = 0xFF;
-            } else {
-                /* Expand run */
-                size_t j;
-                for (j = 0; j < run_length; j++) {
-                    (*output)[out_pos++] = value;
-                }
-            }
-            i += 2;
-        } else {
-            /* Literal byte */
-            (*output)[out_pos++] = input[i];
+    /* Try decompression with increasing buffer sizes if needed */
+    do {
+        *output = malloc(buffer_size);
+        if (!*output) {
+            return BINKP_ERROR_BUFFER_TOO_SMALL;
         }
-    }
 
-    *output_len = out_pos;
+        decompressed_len = buffer_size;
+        result = uncompress(*output, &decompressed_len, input, input_len);
+
+        if (result == Z_BUF_ERROR) {
+            /* Buffer too small, try larger buffer */
+            free(*output);
+            buffer_size *= 2;
+            if (buffer_size > PLZ_MAX_FRAME_SIZE * 4) {
+                /* Prevent runaway buffer growth */
+                logf_error("PLZ decompression failed: output too large");
+                return BINKP_ERROR_BUFFER_TOO_SMALL;
+            }
+        } else if (result != Z_OK) {
+            free(*output);
+            *output = NULL;
+            logf_error("PLZ decompression failed: zlib error %d", result);
+            return BINKP_ERROR_BUFFER_TOO_SMALL;
+        }
+    } while (result == Z_BUF_ERROR);
+
+    *output_len = decompressed_len;
 
     /* Update statistics */
     ctx->bytes_received_compressed += input_len;

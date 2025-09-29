@@ -88,6 +88,11 @@ typedef struct {
     int use_crc;                /* Enable CRC verification */
     int use_nr_mode;            /* Enable Non-Reliable mode */
     char* outbound_path;        /* BSO outbound directory */
+    /* PLZ compression settings */
+    char* plz_mode_str;         /* PLZ mode string (none, supported, required) */
+    int plz_mode;               /* PLZ mode as enum value */
+    char* plz_level_str;        /* PLZ level string (fast, normal, best) */
+    int plz_level;              /* PLZ level as enum value */
 } ftn_network_config_t;
 
 typedef struct {

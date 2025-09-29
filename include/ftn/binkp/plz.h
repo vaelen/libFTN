@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "../binkp.h"
+#include "zlib.h"
 
 /* PLZ compression modes */
 typedef enum {
@@ -51,9 +52,11 @@ typedef struct {
     ftn_plz_mode_t remote_mode;
     ftn_plz_level_t compression_level;
 
-    /* Compression state (simplified - would use zlib in real implementation) */
-    void* compress_ctx;
-    void* decompress_ctx;
+    /* Real zlib compression contexts */
+    z_stream compress_stream;
+    z_stream decompress_stream;
+    int compress_initialized;
+    int decompress_initialized;
 
     /* Statistics */
     uint32_t bytes_sent_uncompressed;
@@ -75,6 +78,7 @@ void ftn_plz_free(ftn_plz_context_t* ctx);
 /* PLZ mode negotiation */
 ftn_binkp_error_t ftn_plz_set_mode(ftn_plz_context_t* ctx, ftn_plz_mode_t mode);
 ftn_binkp_error_t ftn_plz_set_level(ftn_plz_context_t* ctx, ftn_plz_level_t level);
+ftn_binkp_error_t ftn_plz_configure_from_network(ftn_plz_context_t* ctx, const void* network_config);
 ftn_binkp_error_t ftn_plz_negotiate(ftn_plz_context_t* ctx, const char* remote_option);
 ftn_binkp_error_t ftn_plz_create_option(const ftn_plz_context_t* ctx, char** option);
 

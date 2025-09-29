@@ -485,6 +485,9 @@ void ftn_config_free(ftn_config_t* config) {
             if (config->networks[i].hub_hostname) free(config->networks[i].hub_hostname);
             if (config->networks[i].password) free(config->networks[i].password);
             if (config->networks[i].outbound_path) free(config->networks[i].outbound_path);
+            /* Free PLZ fields */
+            if (config->networks[i].plz_mode_str) free(config->networks[i].plz_mode_str);
+            if (config->networks[i].plz_level_str) free(config->networks[i].plz_level_str);
         }
         free(config->networks);
     }
@@ -851,6 +854,39 @@ static ftn_error_t ftn_config_load_network_sections(ftn_config_t* config, const 
                 if (!net->outbound_path) return FTN_ERROR_NOMEM;
             }
 
+            /* PLZ compression settings */
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "plz_mode");
+            if (value) {
+                net->plz_mode_str = ftn_config_strdup(value);
+                if (!net->plz_mode_str) return FTN_ERROR_NOMEM;
+                if (ftn_config_strcasecmp(value, "supported") == 0) {
+                    net->plz_mode = 1; /* PLZ_MODE_SUPPORTED */
+                } else if (ftn_config_strcasecmp(value, "required") == 0) {
+                    net->plz_mode = 2; /* PLZ_MODE_REQUIRED */
+                } else {
+                    net->plz_mode = 0; /* PLZ_MODE_NONE */
+                }
+            } else {
+                net->plz_mode = 1; /* Default to supported */
+                net->plz_mode_str = ftn_config_strdup("supported");
+            }
+
+            value = ftn_config_ini_get_value(ini, ini->sections[i].name, "plz_level");
+            if (value) {
+                net->plz_level_str = ftn_config_strdup(value);
+                if (!net->plz_level_str) return FTN_ERROR_NOMEM;
+                if (ftn_config_strcasecmp(value, "fast") == 0) {
+                    net->plz_level = 1; /* PLZ_LEVEL_FAST */
+                } else if (ftn_config_strcasecmp(value, "best") == 0) {
+                    net->plz_level = 9; /* PLZ_LEVEL_BEST */
+                } else {
+                    net->plz_level = 6; /* PLZ_LEVEL_NORMAL */
+                }
+            } else {
+                net->plz_level = 6; /* Default to normal */
+                net->plz_level_str = ftn_config_strdup("normal");
+            }
+
             config->network_count++;
         }
     }
@@ -1081,6 +1117,9 @@ ftn_error_t ftn_config_reload(ftn_config_t* config, const char* filename) {
             if (old_networks[i].hub_hostname) free(old_networks[i].hub_hostname);
             if (old_networks[i].password) free(old_networks[i].password);
             if (old_networks[i].outbound_path) free(old_networks[i].outbound_path);
+            /* Free PLZ fields */
+            if (old_networks[i].plz_mode_str) free(old_networks[i].plz_mode_str);
+            if (old_networks[i].plz_level_str) free(old_networks[i].plz_level_str);
         }
         free(old_networks);
     }
