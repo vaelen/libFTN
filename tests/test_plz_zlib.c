@@ -104,7 +104,8 @@ static int test_plz_compression_roundtrip(void) {
 
     /* Check that compression actually reduced size */
     if (compressed_len >= test_len) {
-        printf("FAIL: compression didn't reduce size (%zu >= %zu)\n", compressed_len, test_len);
+        printf("FAIL: compression didn't reduce size (%lu >= %lu)\n",
+               (unsigned long)compressed_len, (unsigned long)test_len);
         free(compressed);
         ftn_plz_free(&ctx);
         return 0;
@@ -121,7 +122,8 @@ static int test_plz_compression_roundtrip(void) {
 
     /* Verify roundtrip integrity */
     if (decompressed_len != test_len) {
-        printf("FAIL: decompressed length mismatch (%zu != %zu)\n", decompressed_len, test_len);
+        printf("FAIL: decompressed length mismatch (%lu != %lu)\n",
+               (unsigned long)decompressed_len, (unsigned long)test_len);
         free(compressed);
         free(decompressed);
         ftn_plz_free(&ctx);
@@ -136,8 +138,8 @@ static int test_plz_compression_roundtrip(void) {
         return 0;
     }
 
-    printf("PASS (compressed %zu -> %zu bytes, ratio: %.1f%%)\n",
-           test_len, compressed_len, 100.0 * compressed_len / test_len);
+    printf("PASS (compressed %lu -> %lu bytes, ratio: %.1f%%)\n",
+           (unsigned long)test_len, (unsigned long)compressed_len, 100.0 * compressed_len / test_len);
 
     free(compressed);
     free(decompressed);
@@ -199,8 +201,8 @@ static int test_plz_compression_levels(void) {
 
         /* Should compress very well */
         if (compressed_len >= test_len / 2) {
-            printf("FAIL: compression not effective for level %s (%zu >= %zu)\n",
-                   level_names[i], compressed_len, test_len / 2);
+            printf("FAIL: compression not effective for level %s (%lu >= %lu)\n",
+                   level_names[i], (unsigned long)compressed_len, (unsigned long)(test_len / 2));
             free(compressed);
             ftn_plz_free(&ctx);
             return 0;
