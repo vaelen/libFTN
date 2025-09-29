@@ -1,5 +1,5 @@
 /*
- * dupecheck.c - Duplicate detection system implementation
+ * dupechk.c - Duplicate detection system implementation
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,7 +28,7 @@
 #include <time.h>
 
 #include "ftn.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 #include "ftn/packet.h"
 
 /* Default settings */

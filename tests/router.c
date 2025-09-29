@@ -12,7 +12,7 @@
 #include "ftn/router.h"
 #include "ftn/config.h"
 #include "ftn/packet.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 
 static int tests_run = 0;
 static int tests_passed = 0;

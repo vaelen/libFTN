@@ -1,5 +1,5 @@
 /*
- * dupecheck.h - Duplicate detection system for libFTN
+ * dupechk.h - Duplicate detection system for libFTN
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,8 +21,8 @@
  * SOFTWARE.
  */
 
-#ifndef FTN_DUPECHECK_H
-#define FTN_DUPECHECK_H
+#ifndef FTN_DUPECHK_H
+#define FTN_DUPECHK_H
 
 #include "ftn.h"
 #include "ftn/packet.h"

@@ -17,16 +17,16 @@ LIBRARY = $(LIBDIR)/libftn.a
 ZLIB_LIB = deps/zlib/libz.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c $(SRCDIR)/net.c $(SRCDIR)/fnmailer.c $(SRCDIR)/binkp.c $(SRCDIR)/binkp/commands.c $(SRCDIR)/binkp/session.c $(SRCDIR)/binkp/auth.c $(SRCDIR)/bso.c $(SRCDIR)/flow.c $(SRCDIR)/control.c $(SRCDIR)/transfer.c $(SRCDIR)/binkp/cram.c $(SRCDIR)/binkp/nr.c $(SRCDIR)/binkp/plz.c $(SRCDIR)/binkp/crc.c
-OBJECTS = $(SRCDIR)/ftn.o $(SRCDIR)/crc.o $(SRCDIR)/nodelist.o $(SRCDIR)/search.o $(SRCDIR)/compat.o $(SRCDIR)/packet.o $(SRCDIR)/rfc822.o $(SRCDIR)/version.o $(SRCDIR)/config.o $(SRCDIR)/dupecheck.o $(SRCDIR)/router.o $(SRCDIR)/storage.o $(SRCDIR)/log.o $(SRCDIR)/net.o $(SRCDIR)/fnmailer.o $(SRCDIR)/binkp.o $(SRCDIR)/binkp/commands.o $(SRCDIR)/binkp/session.o $(SRCDIR)/binkp/auth.o $(SRCDIR)/bso.o $(SRCDIR)/flow.o $(SRCDIR)/control.o $(SRCDIR)/transfer.o $(SRCDIR)/binkp/cram.o $(SRCDIR)/binkp/nr.o $(SRCDIR)/binkp/plz.o $(SRCDIR)/binkp/crc.o
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupechk.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c $(SRCDIR)/net.c $(SRCDIR)/mailer.c $(SRCDIR)/binkp.c $(SRCDIR)/binkp/commands.c $(SRCDIR)/binkp/session.c $(SRCDIR)/binkp/auth.c $(SRCDIR)/bso.c $(SRCDIR)/flow.c $(SRCDIR)/control.c $(SRCDIR)/transfer.c $(SRCDIR)/binkp/cram.c $(SRCDIR)/binkp/nr.c $(SRCDIR)/binkp/plz.c $(SRCDIR)/binkp/crc.c
+OBJECTS = $(SRCDIR)/ftn.o $(SRCDIR)/crc.o $(SRCDIR)/nodelist.o $(SRCDIR)/search.o $(SRCDIR)/compat.o $(SRCDIR)/packet.o $(SRCDIR)/rfc822.o $(SRCDIR)/version.o $(SRCDIR)/config.o $(SRCDIR)/dupechk.o $(SRCDIR)/router.o $(SRCDIR)/storage.o $(SRCDIR)/log.o $(SRCDIR)/net.o $(SRCDIR)/mailer.o $(SRCDIR)/binkp.o $(SRCDIR)/binkp/commands.o $(SRCDIR)/binkp/session.o $(SRCDIR)/binkp/auth.o $(SRCDIR)/bso.o $(SRCDIR)/flow.o $(SRCDIR)/control.o $(SRCDIR)/transfer.o $(SRCDIR)/binkp/cram.o $(SRCDIR)/binkp/nr.o $(SRCDIR)/binkp/plz.o $(SRCDIR)/binkp/crc.o
 OBJECTS := $(addprefix $(OBJDIR)/,$(OBJECTS:$(SRCDIR)/%=%))
 
 # Test programs
-TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_fntosser.c $(TESTDIR)/test_dupecheck.c $(TESTDIR)/test_router.c $(TESTDIR)/test_storage.c $(TESTDIR)/test_integration.c $(TESTDIR)/test_plz_zlib.c
+TEST_SOURCES = $(TESTDIR)/nodelist.c $(TESTDIR)/crc.c $(TESTDIR)/compat.c $(TESTDIR)/packet.c $(TESTDIR)/ctrlpar.c $(TESTDIR)/rfc822.c $(TESTDIR)/config.c $(TESTDIR)/fntosser.c $(TESTDIR)/dupechk.c $(TESTDIR)/router.c $(TESTDIR)/storage.c $(TESTDIR)/integrat.c $(TESTDIR)/plz.c $(TESTDIR)/final.c
 TEST_BINARIES = $(TEST_SOURCES:$(TESTDIR)/%.c=$(BINDIR)/tests/%)
 
 # Example programs
-EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c $(SRCDIR)/fnmailer_main.c
+EXAMPLE_SOURCES = $(SRCDIR)/nlview.c $(SRCDIR)/nllookup.c $(SRCDIR)/pktlist.c $(SRCDIR)/pktview.c $(SRCDIR)/pktcreate.c $(SRCDIR)/pktbundle.c $(SRCDIR)/pkt2mail.c $(SRCDIR)/msg2pkt.c $(SRCDIR)/pkt2news.c $(SRCDIR)/pktscan.c $(SRCDIR)/fntosser.c $(SRCDIR)/fnmailer.c
 EXAMPLE_BINARIES = $(EXAMPLE_SOURCES:$(SRCDIR)/%.c=$(BINDIR)/%)
 
 .PHONY: all clean test examples zlib
@@ -63,7 +63,7 @@ $(LIBRARY): $(OBJECTS) | $(LIBDIR)
 	ar rcs $@ $(OBJECTS)
 
 # Build test programs
-$(BINDIR)/tests/test_%: $(TESTDIR)/test_%.c $(LIBRARY) $(ZLIB_LIB) | $(BINDIR)/tests
+$(BINDIR)/tests/%: $(TESTDIR)/%.c $(LIBRARY) $(ZLIB_LIB) | $(BINDIR)/tests
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIBDIR) -lftn $(ZLIB_LIB) -o $@
 
 # Build example programs (fnmailer needs zlib)

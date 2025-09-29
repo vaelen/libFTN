@@ -1,5 +1,5 @@
 /*
- * fnmailer.h - FidoNet Mailer daemon header
+ * mailer.h - FidoNet Mailer daemon header
  * Copyright (c) 2025 Andrew C. Young <andrew@vaelen.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,8 +21,8 @@
  * SOFTWARE.
  */
 
-#ifndef FTN_FNMAILER_H
-#define FTN_FNMAILER_H
+#ifndef FTN_MAILER_H
+#define FTN_MAILER_H
 
 #include "ftn.h"
 #include <signal.h>

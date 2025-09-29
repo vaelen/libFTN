@@ -27,7 +27,7 @@
 #include "ftn.h"
 #include "ftn/packet.h"
 #include "ftn/config.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 
 /* Routing action types */
 typedef enum {

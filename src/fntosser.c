@@ -40,7 +40,7 @@
 #include "ftn/packet.h"
 #include "ftn/router.h"
 #include "ftn/storage.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 #include "ftn/log.h"
 
 /* Global daemon state */

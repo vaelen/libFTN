@@ -15,7 +15,7 @@
 #include "ftn/packet.h"
 #include "ftn/router.h"
 #include "ftn/storage.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 
 /* Test configuration file content */
 static const char* test_config_content =

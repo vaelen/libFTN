@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #include "ftn.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 #include "ftn/packet.h"
 
 static int tests_run = 0;

@@ -30,7 +30,7 @@
 #include "ftn/router.h"
 #include "ftn/packet.h"
 #include "ftn/config.h"
-#include "ftn/dupecheck.h"
+#include "ftn/dupechk.h"
 
 /* Default routing settings */
 #define DEFAULT_RULE_CAPACITY 64
