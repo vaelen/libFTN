@@ -10,7 +10,6 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <strings.h>
 
 static void print_version(void) {
     printf("msg2pkt (libFTN) %s\n", ftn_get_version());

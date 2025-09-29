@@ -54,7 +54,6 @@ typedef struct {
 typedef struct {
     char* level_str;
     ftn_log_level_t level;
-    int use_syslog;
     char* log_file;
     char* ident;
 } ftn_logging_config_t;

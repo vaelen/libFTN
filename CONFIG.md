@@ -38,9 +38,8 @@ This section configures local mail delivery.
 This section configures the logging options.
 
 - `level`: The log level. Can be `debug`, `info`, `warning`, `error`, or `critical`. Default is `info`.
-- `use_syslog`: If `yes`, log to syslog in daemon mode. Default is `no`.
-- `log_file`: The path to the log file when not using syslog. Default is standard output.
-- `ident`: The identifier to use for syslog messages. Default is `fntosser`.
+- `log_file`: The path to the log file. If not specified, logs to standard output.
+- `ident`: The identifier to use for log messages. Default is `fntosser`.
 
 ### [daemon]
 This section configures the daemon mode.
@@ -90,7 +89,6 @@ sent = /var/mail/%USER%/.Sent
 
 [logging]
 level = info
-use_syslog = yes
 ident = fntosser
 
 [daemon]

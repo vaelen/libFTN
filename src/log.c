@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <syslog.h>
 #include <stdarg.h>
 
 #include "ftn/log.h"
@@ -14,28 +13,18 @@
 typedef struct {
     char* level_str;
     ftn_log_level_t level;
-    int use_syslog;
     char* log_file;
     char* ident;
 } ftn_logging_config_t;
 
 static ftn_log_level_t current_log_level = FTN_LOG_INFO;
-static int use_syslog = 0;
 static FILE* log_file = NULL;
 static char* log_ident = NULL;
-
-/* Custom vsyslog implementation */
-static void ftn_vsyslog(int priority, const char *format, va_list args) {
-    char buffer[1024];
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    syslog(priority, "%s", buffer);
-}
 
 void ftn_log_init(const void* config_ptr) {
     const ftn_logging_config_t* config = (const ftn_logging_config_t*)config_ptr;
     if (config) {
         current_log_level = config->level;
-        use_syslog = config->use_syslog;
 
         /* Store identity string */
         if (log_ident) {
@@ -56,24 +45,14 @@ void ftn_log_init(const void* config_ptr) {
                 fprintf(stderr, "Warning: Could not open log file %s\n", config->log_file);
             }
         }
-
-        /* Initialize syslog if requested */
-        if (use_syslog) {
-            openlog(log_ident ? log_ident : "fnmailer", LOG_PID | LOG_CONS, LOG_DAEMON);
-        }
     } else {
         /* Default configuration */
         current_log_level = FTN_LOG_INFO;
-        use_syslog = 0;
         log_file = NULL;
     }
 }
 
 void ftn_log_cleanup(void) {
-    if (use_syslog) {
-        closelog();
-    }
-
     if (log_file) {
         fclose(log_file);
         log_file = NULL;
@@ -93,38 +72,31 @@ void ftn_log_set_level(ftn_log_level_t level) {
     current_log_level = level;
 }
 
-static void get_log_level_str(ftn_log_level_t level, const char** level_str, int* syslog_level) {
+static void get_log_level_str(ftn_log_level_t level, const char** level_str) {
     switch (level) {
         case FTN_LOG_DEBUG:
             *level_str = "DEBUG";
-            *syslog_level = LOG_DEBUG;
             break;
         case FTN_LOG_INFO:
             *level_str = "INFO";
-            *syslog_level = LOG_INFO;
             break;
         case FTN_LOG_WARNING:
             *level_str = "WARNING";
-            *syslog_level = LOG_WARNING;
             break;
         case FTN_LOG_ERROR:
             *level_str = "ERROR";
-            *syslog_level = LOG_ERR;
             break;
         case FTN_LOG_CRITICAL:
             *level_str = "CRITICAL";
-            *syslog_level = LOG_CRIT;
             break;
         default:
             *level_str = "UNKNOWN";
-            *syslog_level = LOG_INFO;
             break;
     }
 }
 
 void ftn_log(ftn_log_level_t level, const char* message) {
     const char* level_str;
-    int syslog_level;
     FILE* output;
     time_t now;
     struct tm* tm_info;
@@ -134,30 +106,25 @@ void ftn_log(ftn_log_level_t level, const char* message) {
         return;
     }
 
-    get_log_level_str(level, &level_str, &syslog_level);
+    get_log_level_str(level, &level_str);
 
-    if (use_syslog) {
-        syslog(syslog_level, "%s", message);
+    time(&now);
+    tm_info = localtime(&now);
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    /* Use log file if available, otherwise console */
+    if (log_file) {
+        fprintf(log_file, "[%s] %s: %s\n", timestamp, level_str, message);
+        fflush(log_file);
     } else {
-        time(&now);
-        tm_info = localtime(&now);
-        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-
-        /* Use log file if available, otherwise console */
-        if (log_file) {
-            fprintf(log_file, "[%s] %s: %s\n", timestamp, level_str, message);
-            fflush(log_file);
-        } else {
-            output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
-            fprintf(output, "[%s] %s: %s\n", timestamp, level_str, message);
-            fflush(output);
-        }
+        output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
+        fprintf(output, "[%s] %s: %s\n", timestamp, level_str, message);
+        fflush(output);
     }
 }
 
 void ftn_vlogf(ftn_log_level_t level, const char* format, va_list args) {
     const char* level_str;
-    int syslog_level;
     FILE* output;
     time_t now;
     struct tm* tm_info;
@@ -167,28 +134,24 @@ void ftn_vlogf(ftn_log_level_t level, const char* format, va_list args) {
         return;
     }
 
-    get_log_level_str(level, &level_str, &syslog_level);
+    get_log_level_str(level, &level_str);
 
-    if (use_syslog) {
-        ftn_vsyslog(syslog_level, format, args);
+    time(&now);
+    tm_info = localtime(&now);
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    /* Use log file if available, otherwise console */
+    if (log_file) {
+        fprintf(log_file, "[%s] %s: ", timestamp, level_str);
+        vfprintf(log_file, format, args);
+        fprintf(log_file, "\n");
+        fflush(log_file);
     } else {
-        time(&now);
-        tm_info = localtime(&now);
-        strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
-
-        /* Use log file if available, otherwise console */
-        if (log_file) {
-            fprintf(log_file, "[%s] %s: ", timestamp, level_str);
-            vfprintf(log_file, format, args);
-            fprintf(log_file, "\n");
-            fflush(log_file);
-        } else {
-            output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
-            fprintf(output, "[%s] %s: ", timestamp, level_str);
-            vfprintf(output, format, args);
-            fprintf(output, "\n");
-            fflush(output);
-        }
+        output = (level >= FTN_LOG_ERROR) ? stderr : stdout;
+        fprintf(output, "[%s] %s: ", timestamp, level_str);
+        vfprintf(output, format, args);
+        fprintf(output, "\n");
+        fflush(output);
     }
 }
 

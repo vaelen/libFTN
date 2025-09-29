@@ -32,8 +32,6 @@
 #include <sys/select.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <getopt.h>
-
 #include "ftn.h"
 #include "ftn/fnmailer.h"
 #include "ftn/log.h"

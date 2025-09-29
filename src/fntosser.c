@@ -33,7 +33,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <syslog.h>
 
 #include "ftn.h"
 #include "ftn/config.h"
@@ -97,10 +96,9 @@ typedef struct {
 static ftn_global_stats_t global_stats = {0};
 
 /* Logging compatibility function */
-static void ftn_log_init_compat(ftn_log_level_t level, int use_syslog, const char* ident) {
+static void ftn_log_init_compat(ftn_log_level_t level, const char* ident) {
     ftn_logging_config_t config = {0};
     config.level = level;
-    config.use_syslog = use_syslog;
     config.ident = (char*)ident; /* Safe cast for compatibility */
     ftn_log_init(&config);
 }
@@ -331,8 +329,7 @@ static void reload_configuration(void) {
     /* Re-initialize logging with potentially new settings */
     if (global_config->logging) {
         ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
-        int use_syslog = global_config->logging->use_syslog;
-        ftn_log_init_compat(log_level, use_syslog, global_config->logging->ident);
+        ftn_log_init_compat(log_level, global_config->logging->ident);
     }
 
     log_info("Configuration reloaded successfully");
@@ -896,7 +893,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Initialize logging early */
-    ftn_log_init_compat(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, 0, "fntosser");
+    ftn_log_init_compat(verbose_mode ? FTN_LOG_DEBUG : FTN_LOG_INFO, "fntosser");
 
     log_info("FTN Tosser starting up");
     logf_debug("Configuration file: %s", config_file_path);
@@ -925,8 +922,7 @@ int main(int argc, char* argv[]) {
     /* Re-initialize logging based on config file settings */
     if (global_config->logging) {
         ftn_log_level_t log_level = verbose_mode ? FTN_LOG_DEBUG : global_config->logging->level;
-        int use_syslog = global_config->logging->use_syslog;
-        ftn_log_init_compat(log_level, use_syslog, global_config->logging->ident);
+        ftn_log_init_compat(log_level, global_config->logging->ident);
     }
 
     /* Determine sleep interval, command-line overrides config */
@@ -951,10 +947,6 @@ int main(int argc, char* argv[]) {
             log_error("Failed to write PID file, continuing...");
         }
 
-        /* In daemon mode, re-init logging to syslog if configured */
-        if (global_config->logging && global_config->logging->use_syslog) {
-            ftn_log_init_compat(global_config->logging->level, 1, global_config->logging->ident);
-        }
         logf_info("Process daemonized. PID file: %s", pid_file ? pid_file : "none");
     }
 

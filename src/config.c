@@ -613,7 +613,6 @@ static ftn_error_t ftn_config_load_logging_section(ftn_config_t* config, const f
 
     /* Set defaults */
     config->logging->level = FTN_LOG_INFO;
-    config->logging->use_syslog = 0;
 
     value = ftn_config_ini_get_value(ini, "logging", "level");
     if (value) {
@@ -633,10 +632,6 @@ static ftn_error_t ftn_config_load_logging_section(ftn_config_t* config, const f
         }
     }
 
-    value = ftn_config_ini_get_value(ini, "logging", "use_syslog");
-    if (value && (ftn_config_strcasecmp(value, "yes") == 0 || ftn_config_strcasecmp(value, "true") == 0 || strcmp(value, "1") == 0)) {
-        config->logging->use_syslog = 1;
-    }
 
     value = ftn_config_ini_get_value(ini, "logging", "log_file");
     if (value) {

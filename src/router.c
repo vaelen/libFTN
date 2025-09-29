@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <fnmatch.h>
 
 #include "ftn.h"
 #include "ftn/router.h"

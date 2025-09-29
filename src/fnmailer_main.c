@@ -87,7 +87,6 @@ int main(int argc, char* argv[]) {
         /* Default logging setup */
         ftn_logging_config_t log_config = {0};
         log_config.level = options.verbose ? FTN_LOG_DEBUG : FTN_LOG_INFO;
-        log_config.use_syslog = 0;
         log_config.log_file = NULL;
         log_config.ident = "fnmailer";
         ftn_log_init(&log_config);

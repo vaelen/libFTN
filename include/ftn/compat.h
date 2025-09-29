@@ -69,4 +69,62 @@ int strncasecmp(const char *s1, const char *s2, size_t n);
 size_t strlcpy(char* dst, const char* src, size_t size);
 #endif
 
+/* fnmatch pattern matching */
+#if defined(__has_include)
+#  if __has_include(<fnmatch.h>)
+#    define HAVE_FNMATCH_H
+#  endif
+#elif !defined(__STRICT_ANSI__) && !defined(_WIN32)
+/* Assume POSIX systems have fnmatch.h unless strict ANSI mode */
+#  define HAVE_FNMATCH_H
+#endif
+
+#ifdef HAVE_FNMATCH_H
+#include <fnmatch.h>
+#else
+/* fnmatch flags */
+#define FNM_NOMATCH 1
+#define FNM_NOESCAPE 0x01
+#define FNM_PATHNAME 0x02
+#define FNM_PERIOD   0x04
+#define FNM_CASEFOLD 0x08
+
+int fnmatch(const char *pattern, const char *string, int flags);
+#endif
+
+/* getopt command line parsing */
+#if defined(__has_include)
+#  if __has_include(<getopt.h>)
+#    define HAVE_GETOPT_H
+#  endif
+#elif !defined(__STRICT_ANSI__) && !defined(_WIN32)
+/* Assume POSIX systems have getopt.h unless strict ANSI mode */
+#  define HAVE_GETOPT_H
+#endif
+
+#ifdef HAVE_GETOPT_H
+#include <getopt.h>
+#else
+/* getopt variables */
+extern char *optarg;
+extern int optind, opterr, optopt;
+
+/* getopt_long option structure */
+struct option {
+    const char *name;
+    int has_arg;
+    int *flag;
+    int val;
+};
+
+/* getopt_long argument values */
+#define no_argument       0
+#define required_argument 1
+#define optional_argument 2
+
+int getopt(int argc, char * const argv[], const char *optstring);
+int getopt_long(int argc, char * const argv[], const char *optstring,
+                const struct option *longopts, int *longindex);
+#endif
+
 #endif /* COMPAT_H */
