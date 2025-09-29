@@ -177,7 +177,7 @@ void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer) {
         if (mailer) {
             mailer->running = 0;
         }
-        ftn_log_info("Shutdown requested");
+        logf_info("Shutdown requested");
         ctx->shutdown_requested = 0;
     }
 
@@ -186,7 +186,7 @@ void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer) {
         if (mailer) {
             ftn_mailer_reload_config(mailer);
         }
-        ftn_log_info("Configuration reloaded");
+        logf_info("Configuration reloaded");
         ctx->reload_config = 0;
     }
 
@@ -203,10 +203,10 @@ void ftn_signal_check(ftn_signal_context_t* ctx, ftn_mailer_context_t* mailer) {
         ftn_log_level_t current = ftn_log_get_level();
         if (current == FTN_LOG_DEBUG) {
             ftn_log_set_level(FTN_LOG_INFO);
-            ftn_log_info("Debug logging disabled");
+            logf_info("Debug logging disabled");
         } else {
             ftn_log_set_level(FTN_LOG_DEBUG);
-            ftn_log_info("Debug logging enabled");
+            logf_info("Debug logging enabled");
         }
         ctx->toggle_debug = 0;
     }
@@ -549,14 +549,14 @@ ftn_error_t ftn_mailer_poll_networks(ftn_mailer_context_t* ctx) {
             continue;
         }
 
-        ftn_log_debug("Polling network %s", net->config->section_name);
+        logf_debug("Polling network %s", net->config->section_name);
 
         /* Simple connection test for now - this will be expanded in later tasks */
         if (net->config->hub_hostname) {
             ftn_net_connection_t* conn = ftn_net_connect(net->config->hub_hostname,
                                                        net->config->hub_port, 5000);
             if (conn) {
-                ftn_log_info("Successfully connected to %s:%d",
+                logf_info("Successfully connected to %s:%d",
                            net->config->hub_hostname, net->config->hub_port);
 
                 /* Update statistics */
@@ -567,7 +567,7 @@ ftn_error_t ftn_mailer_poll_networks(ftn_mailer_context_t* ctx) {
                 /* Close connection for now - actual protocol will be implemented later */
                 ftn_net_connection_free(conn);
             } else {
-                ftn_log_warning("Failed to connect to %s:%d",
+                logf_warning("Failed to connect to %s:%d",
                               net->config->hub_hostname, net->config->hub_port);
 
                 ctx->failed_connections++;
@@ -613,17 +613,17 @@ void ftn_mailer_dump_statistics(ftn_mailer_context_t* ctx) {
 
     uptime = time(NULL) - ctx->start_time;
 
-    ftn_log_info("=== FNMailer Statistics ===");
-    ftn_log_info("Uptime: %ld seconds", uptime);
-    ftn_log_info("Connections: %u total, %u successful, %u failed",
+    logf_info("=== FNMailer Statistics ===");
+    logf_info("Uptime: %ld seconds", uptime);
+    logf_info("Connections: %u total, %u successful, %u failed",
                 ctx->total_connections, ctx->successful_connections, ctx->failed_connections);
-    ftn_log_info("Data: %lu bytes sent, %lu bytes received",
+    logf_info("Data: %lu bytes sent, %lu bytes received",
                 (unsigned long)ctx->bytes_sent, (unsigned long)ctx->bytes_received);
 
-    ftn_log_info("=== Network Status ===");
+    logf_info("=== Network Status ===");
     for (i = 0; i < ctx->network_count; i++) {
         ftn_network_context_t* net = &ctx->networks[i];
-        ftn_log_info("Network %s: last_poll=%ld, next_poll=%ld, failures=%d",
+        logf_info("Network %s: last_poll=%ld, next_poll=%ld, failures=%d",
                     net->config->section_name ? net->config->section_name : "unknown",
                     net->last_successful_poll, net->next_poll_time, net->consecutive_failures);
     }
@@ -653,28 +653,28 @@ ftn_error_t ftn_mailer_reload_config(ftn_mailer_context_t* ctx) {
         return FTN_ERROR_INVALID_PARAMETER;
     }
 
-    ftn_log_info("Reloading configuration from %s", ctx->config_filename);
+    logf_info("Reloading configuration from %s", ctx->config_filename);
 
     result = ftn_config_reload(ctx->config, ctx->config_filename);
     if (result != FTN_OK) {
-        ftn_log_error("Failed to reload configuration: %d", result);
+        logf_error("Failed to reload configuration: %d", result);
         return result;
     }
 
     result = ftn_config_validate_mailer(ctx->config);
     if (result != FTN_OK) {
-        ftn_log_error("Configuration validation failed: %d", result);
+        logf_error("Configuration validation failed: %d", result);
         return result;
     }
 
     /* Reinitialize networks if needed */
     result = ftn_mailer_init_networks(ctx);
     if (result != FTN_OK) {
-        ftn_log_error("Failed to reinitialize networks: %d", result);
+        logf_error("Failed to reinitialize networks: %d", result);
         return result;
     }
 
-    ftn_log_info("Configuration reloaded successfully");
+    logf_info("Configuration reloaded successfully");
     return FTN_OK;
 }
 
@@ -698,16 +698,16 @@ ftn_error_t ftn_mailer_single_shot(ftn_mailer_context_t* ctx) {
         return FTN_ERROR_INVALID_PARAMETER;
     }
 
-    ftn_log_info("Starting single-shot mode");
+    logf_info("Starting single-shot mode");
 
     /* Poll all networks once */
     result = ftn_mailer_poll_networks(ctx);
     if (result != FTN_OK) {
-        ftn_log_error("Network polling failed: %d", result);
+        logf_error("Network polling failed: %d", result);
         return result;
     }
 
-    ftn_log_info("Single-shot mode completed");
+    logf_info("Single-shot mode completed");
     return FTN_OK;
 }
 
@@ -724,7 +724,7 @@ ftn_error_t ftn_mailer_daemon_loop(ftn_mailer_context_t* ctx) {
         return FTN_ERROR_INVALID_PARAMETER;
     }
 
-    ftn_log_info("Starting daemon mode");
+    logf_info("Starting daemon mode");
 
     while (ctx->running) {
         /* Check for signals */
@@ -766,11 +766,11 @@ ftn_error_t ftn_mailer_daemon_loop(ftn_mailer_context_t* ctx) {
             /* Timeout - time to poll networks */
             continue;
         } else if (activity < 0 && errno != EINTR) {
-            ftn_log_error("select() failed: %s", strerror(errno));
+            logf_error("select() failed: %s", strerror(errno));
             return FTN_ERROR_NETWORK;
         }
     }
 
-    ftn_log_info("Daemon mode shutdown");
+    logf_info("Daemon mode shutdown");
     return FTN_OK;
 }

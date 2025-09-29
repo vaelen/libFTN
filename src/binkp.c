@@ -36,7 +36,7 @@ ftn_binkp_error_t ftn_binkp_frame_parse(const uint8_t* buffer, size_t len, ftn_b
 
     /* Validate frame size */
     if (frame_size > BINKP_MAX_FRAME_SIZE) {
-        ftn_log_error("Binkp frame size %zu exceeds maximum %d", frame_size, BINKP_MAX_FRAME_SIZE);
+        logf_error("Binkp frame size %zu exceeds maximum %d", frame_size, BINKP_MAX_FRAME_SIZE);
         return BINKP_ERROR_FRAME_TOO_LARGE;
     }
 
@@ -61,7 +61,7 @@ ftn_binkp_error_t ftn_binkp_frame_parse(const uint8_t* buffer, size_t len, ftn_b
         frame->data = NULL;
     }
 
-    ftn_log_debug("Parsed binkp frame: size=%zu, command=%d", frame_size, frame->is_command);
+    logf_debug("Parsed binkp frame: size=%zu, command=%d", frame_size, frame->is_command);
     return BINKP_OK;
 }
 
@@ -73,7 +73,7 @@ ftn_binkp_error_t ftn_binkp_frame_create(ftn_binkp_frame_t* frame, int is_comman
     }
 
     if (size > BINKP_MAX_FRAME_SIZE) {
-        ftn_log_error("Binkp frame size %zu exceeds maximum %d", size, BINKP_MAX_FRAME_SIZE);
+        logf_error("Binkp frame size %zu exceeds maximum %d", size, BINKP_MAX_FRAME_SIZE);
         return BINKP_ERROR_FRAME_TOO_LARGE;
     }
 
@@ -102,7 +102,7 @@ ftn_binkp_error_t ftn_binkp_frame_create(ftn_binkp_frame_t* frame, int is_comman
         frame->data = NULL;
     }
 
-    ftn_log_debug("Created binkp frame: size=%zu, command=%d", size, is_command);
+    logf_debug("Created binkp frame: size=%zu, command=%d", size, is_command);
     return BINKP_OK;
 }
 
@@ -149,11 +149,11 @@ ftn_binkp_error_t ftn_binkp_frame_send(ftn_net_connection_t* conn, const ftn_bin
 
     net_result = ftn_net_send_all(conn, buffer, bytes_written);
     if (net_result != FTN_OK) {
-        ftn_log_error("Failed to send binkp frame: network error");
+        logf_error("Failed to send binkp frame: network error");
         return BINKP_ERROR_NETWORK;
     }
 
-    ftn_log_debug("Sent binkp frame: %zu bytes", bytes_written);
+    logf_debug("Sent binkp frame: %zu bytes", bytes_written);
     return BINKP_OK;
 }
 
@@ -178,7 +178,7 @@ ftn_binkp_error_t ftn_binkp_frame_receive(ftn_net_connection_t* conn, ftn_binkp_
         if (net_result == FTN_ERROR_TIMEOUT) {
             return BINKP_ERROR_TIMEOUT;
         }
-        ftn_log_error("Failed to receive binkp frame header: network error");
+        logf_error("Failed to receive binkp frame header: network error");
         return BINKP_ERROR_NETWORK;
     }
 
@@ -187,7 +187,7 @@ ftn_binkp_error_t ftn_binkp_frame_receive(ftn_net_connection_t* conn, ftn_binkp_
     frame_size = header_word & 0x7FFF;
 
     if (frame_size > BINKP_MAX_FRAME_SIZE) {
-        ftn_log_error("Received binkp frame size %zu exceeds maximum %d", frame_size, BINKP_MAX_FRAME_SIZE);
+        logf_error("Received binkp frame size %zu exceeds maximum %d", frame_size, BINKP_MAX_FRAME_SIZE);
         return BINKP_ERROR_FRAME_TOO_LARGE;
     }
 
@@ -212,14 +212,14 @@ ftn_binkp_error_t ftn_binkp_frame_receive(ftn_net_connection_t* conn, ftn_binkp_
             if (net_result == FTN_ERROR_TIMEOUT) {
                 return BINKP_ERROR_TIMEOUT;
             }
-            ftn_log_error("Failed to receive binkp frame data: network error");
+            logf_error("Failed to receive binkp frame data: network error");
             return BINKP_ERROR_NETWORK;
         }
     } else {
         frame->data = NULL;
     }
 
-    ftn_log_debug("Received binkp frame: size=%zu, command=%d", frame_size, frame->is_command);
+    logf_debug("Received binkp frame: size=%zu, command=%d", frame_size, frame->is_command);
     return BINKP_OK;
 }
 

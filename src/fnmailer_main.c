@@ -93,13 +93,13 @@ int main(int argc, char* argv[]) {
         ftn_log_init(&log_config);
     }
 
-    ftn_log_info("FNMailer starting (version %s)", FTN_VERSION_STRING);
+    logf_info("FNMailer starting (version %s)", FTN_VERSION_STRING);
 
     /* Daemonize if requested */
     if (options.daemon_mode) {
         result = ftn_mailer_daemonize(ctx);
         if (result != FTN_OK) {
-            ftn_log_error("Failed to daemonize: %d", result);
+            logf_error("Failed to daemonize: %d", result);
             exit_code = 1;
             goto cleanup;
         }
@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
         /* Create PID file after daemonizing */
         result = ftn_mailer_create_pid_file(ctx);
         if (result != FTN_OK) {
-            ftn_log_warning("Failed to create PID file: %d", result);
+            logf_warning("Failed to create PID file: %d", result);
             /* Not a fatal error */
         }
     }
@@ -115,11 +115,11 @@ int main(int argc, char* argv[]) {
     /* Run the mailer */
     result = ftn_mailer_run(ctx);
     if (result != FTN_OK) {
-        ftn_log_error("Mailer execution failed: %d", result);
+        logf_error("Mailer execution failed: %d", result);
         exit_code = 1;
     }
 
-    ftn_log_info("FNMailer shutdown complete");
+    logf_info("FNMailer shutdown complete");
 
 cleanup:
     /* Remove PID file */

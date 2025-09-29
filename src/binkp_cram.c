@@ -318,7 +318,7 @@ ftn_binkp_error_t ftn_generate_random_bytes(uint8_t* buffer, size_t len) {
         }
     }
 
-    ftn_log_warning("Using weak random number generation for CRAM challenge");
+    logf_warning("Using weak random number generation for CRAM challenge");
     return BINKP_OK;
 }
 
@@ -345,7 +345,7 @@ ftn_binkp_error_t ftn_cram_generate_challenge(ftn_cram_context_t* ctx, ftn_cram_
     ctx->selected_algorithm = algorithm;
     ctx->challenge_generated = 1;
 
-    ftn_log_debug("Generated CRAM challenge with %s algorithm", ftn_cram_algorithm_name(algorithm));
+    logf_debug("Generated CRAM challenge with %s algorithm", ftn_cram_algorithm_name(algorithm));
     return BINKP_OK;
 }
 
@@ -447,7 +447,7 @@ ftn_binkp_error_t ftn_cram_parse_challenge(const char* opt_string, ftn_cram_cont
     }
 
     free(opt_copy);
-    ftn_log_debug("Parsed CRAM challenge with %s algorithm", ftn_cram_algorithm_name(ctx->selected_algorithm));
+    logf_debug("Parsed CRAM challenge with %s algorithm", ftn_cram_algorithm_name(ctx->selected_algorithm));
     return BINKP_OK;
 }
 
@@ -716,7 +716,7 @@ ftn_binkp_error_t ftn_cram_create_response(const char* password, const ftn_cram_
              ftn_cram_algorithm_name(ctx->selected_algorithm), hex_digest);
 
     free(hex_digest);
-    ftn_log_debug("Created CRAM response");
+    logf_debug("Created CRAM response");
     return BINKP_OK;
 }
 
@@ -742,10 +742,10 @@ ftn_binkp_error_t ftn_cram_verify_response(const char* password, const ftn_cram_
     free(expected_response);
 
     if (match) {
-        ftn_log_info("CRAM authentication successful");
+        logf_info("CRAM authentication successful");
         return BINKP_OK;
     } else {
-        ftn_log_warning("CRAM authentication failed");
+        logf_warning("CRAM authentication failed");
         return BINKP_ERROR_AUTH_FAILED;
     }
 }

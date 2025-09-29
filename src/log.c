@@ -233,39 +233,3 @@ void logf_critical(const char* format, ...) {
     ftn_vlogf(FTN_LOG_CRITICAL, format, args);
     va_end(args);
 }
-
-/* Convenience functions for mailer */
-void ftn_log_debug(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    ftn_vlogf(FTN_LOG_DEBUG, format, args);
-    va_end(args);
-}
-
-void ftn_log_info(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    ftn_vlogf(FTN_LOG_INFO, format, args);
-    va_end(args);
-}
-
-void ftn_log_warning(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    ftn_vlogf(FTN_LOG_WARNING, format, args);
-    va_end(args);
-}
-
-void ftn_log_error(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    ftn_vlogf(FTN_LOG_ERROR, format, args);
-    va_end(args);
-}
-
-void ftn_log_critical(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    ftn_vlogf(FTN_LOG_CRITICAL, format, args);
-    va_end(args);
-}

@@ -68,7 +68,7 @@ ftn_binkp_auth_result_t ftn_binkp_validate_address(ftn_binkp_auth_context_t* aut
                     strcpy(auth_ctx->remote_address, addresses[i]);
                 }
 
-                ftn_log_info("Validated remote address: %s", addresses[i]);
+                logf_info("Validated remote address: %s", addresses[i]);
                 auth_result = BINKP_AUTH_SUCCESS;
                 break;
             }
@@ -81,7 +81,7 @@ ftn_binkp_auth_result_t ftn_binkp_validate_address(ftn_binkp_auth_context_t* aut
     ftn_binkp_free_address_list(addresses, count);
 
     if (auth_result != BINKP_AUTH_SUCCESS) {
-        ftn_log_warning("No matching address found in: %s", address_list);
+        logf_warning("No matching address found in: %s", address_list);
     }
 
     return auth_result;
@@ -165,7 +165,7 @@ ftn_binkp_auth_result_t ftn_binkp_authenticate_password(ftn_binkp_auth_context_t
     /* Look up the expected password for the remote address */
     result = ftn_binkp_lookup_password(auth_ctx->config, auth_ctx->remote_address, &expected_password);
     if (result != BINKP_OK || !expected_password) {
-        ftn_log_debug("No password configured for address: %s", auth_ctx->remote_address ? auth_ctx->remote_address : "unknown");
+        logf_debug("No password configured for address: %s", auth_ctx->remote_address ? auth_ctx->remote_address : "unknown");
         return BINKP_AUTH_NO_PASSWORD;
     }
 
@@ -173,11 +173,11 @@ ftn_binkp_auth_result_t ftn_binkp_authenticate_password(ftn_binkp_auth_context_t
     if (strcmp(password, expected_password) == 0) {
         auth_ctx->authenticated = 1;
         auth_ctx->is_secure = 1;
-        ftn_log_info("Password authentication successful for %s", auth_ctx->remote_address);
+        logf_info("Password authentication successful for %s", auth_ctx->remote_address);
         free(expected_password);
         return BINKP_AUTH_SUCCESS;
     } else {
-        ftn_log_warning("Password authentication failed for %s", auth_ctx->remote_address);
+        logf_warning("Password authentication failed for %s", auth_ctx->remote_address);
         free(expected_password);
         return BINKP_AUTH_FAILED;
     }

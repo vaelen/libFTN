@@ -126,7 +126,7 @@ ftn_bso_error_t ftn_flow_parse_filename(const char* filename, ftn_flow_type_t* t
         return result;
     }
 
-    ftn_log_debug("Parsed flow file %s: type=%s, flavor=%s, address=%d:%d/%d.%d",
+    logf_debug("Parsed flow file %s: type=%s, flavor=%s, address=%d:%d/%d.%d",
                   filename, ftn_flow_type_string(*type), ftn_flow_flavor_string(*flavor),
                   address->zone, address->net, address->node, address->point);
 
@@ -229,7 +229,7 @@ ftn_bso_error_t ftn_flow_load_file(const char* filepath, ftn_flow_file_t* flow) 
 
     /* Get file stats */
     if (stat(filepath, &st) != 0) {
-        ftn_log_error("Cannot stat flow file %s: %s", filepath, strerror(errno));
+        logf_error("Cannot stat flow file %s: %s", filepath, strerror(errno));
         return BSO_ERROR_NOT_FOUND;
     }
 
@@ -296,7 +296,7 @@ ftn_bso_error_t ftn_flow_parse_reference_file(const char* filepath, ftn_flow_fil
 
     file = fopen(filepath, "r");
     if (!file) {
-        ftn_log_error("Cannot open reference file %s: %s", filepath, strerror(errno));
+        logf_error("Cannot open reference file %s: %s", filepath, strerror(errno));
         return BSO_ERROR_NOT_FOUND;
     }
 
@@ -325,7 +325,7 @@ ftn_bso_error_t ftn_flow_parse_reference_file(const char* filepath, ftn_flow_fil
         /* Parse reference entry */
         result = ftn_flow_parse_reference_line(line, &entry);
         if (result != BSO_OK) {
-            ftn_log_warning("Invalid reference line in %s: %s", filepath, line);
+            logf_warning("Invalid reference line in %s: %s", filepath, line);
             continue;
         }
 
@@ -339,7 +339,7 @@ ftn_bso_error_t ftn_flow_parse_reference_file(const char* filepath, ftn_flow_fil
     }
 
     fclose(file);
-    ftn_log_debug("Loaded reference file %s with %zu entries", filepath, flow->file_count);
+    logf_debug("Loaded reference file %s with %zu entries", filepath, flow->file_count);
     return BSO_OK;
 }
 
@@ -379,7 +379,7 @@ ftn_bso_error_t ftn_flow_process_netmail_file(const char* filepath, ftn_flow_fil
         return result;
     }
 
-    ftn_log_debug("Processed netmail file %s", filepath);
+    logf_debug("Processed netmail file %s", filepath);
     return BSO_OK;
 }
 

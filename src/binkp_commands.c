@@ -50,7 +50,7 @@ ftn_binkp_error_t ftn_binkp_command_parse(const ftn_binkp_frame_t* frame, ftn_bi
         cmd_frame->args_len = 0;
     }
 
-    ftn_log_debug("Parsed binkp command %s with %zu byte args",
+    logf_debug("Parsed binkp command %s with %zu byte args",
                   ftn_binkp_command_name(cmd_frame->cmd), cmd_frame->args_len);
     return BINKP_OK;
 }

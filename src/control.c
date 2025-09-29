@@ -130,7 +130,7 @@ ftn_bso_error_t ftn_control_atomic_create(const char* filepath, const char* cont
         if (errno == EEXIST) {
             return BSO_ERROR_BUSY;
         }
-        ftn_log_error("Cannot create control file %s: %s", filepath, strerror(errno));
+        logf_error("Cannot create control file %s: %s", filepath, strerror(errno));
         return BSO_ERROR_FILE_IO;
     }
 
@@ -144,7 +144,7 @@ ftn_bso_error_t ftn_control_atomic_create(const char* filepath, const char* cont
         return BSO_ERROR_FILE_IO;
     }
 
-    ftn_log_debug("Created control file: %s", filepath);
+    logf_debug("Created control file: %s", filepath);
     return BSO_OK;
 }
 
@@ -157,11 +157,11 @@ ftn_bso_error_t ftn_control_atomic_remove(const char* filepath) {
         if (errno == ENOENT) {
             return BSO_OK;
         }
-        ftn_log_error("Cannot remove control file %s: %s", filepath, strerror(errno));
+        logf_error("Cannot remove control file %s: %s", filepath, strerror(errno));
         return BSO_ERROR_FILE_IO;
     }
 
-    ftn_log_debug("Removed control file: %s", filepath);
+    logf_debug("Removed control file: %s", filepath);
     return BSO_OK;
 }
 
@@ -317,13 +317,13 @@ ftn_bso_error_t ftn_control_acquire_bsy(const struct ftn_address* addr, const ch
             }
         }
 
-        ftn_log_info("Acquired BSY lock for %d:%d/%d.%d", addr->zone, addr->net, addr->node, addr->point);
+        logf_info("Acquired BSY lock for %d:%d/%d.%d", addr->zone, addr->net, addr->node, addr->point);
     } else {
         free(filepath);
         free(content);
 
         if (result == BSO_ERROR_BUSY) {
-            ftn_log_debug("BSY lock already exists for %d:%d/%d.%d", addr->zone, addr->net, addr->node, addr->point);
+            logf_debug("BSY lock already exists for %d:%d/%d.%d", addr->zone, addr->net, addr->node, addr->point);
         }
     }
 
@@ -338,7 +338,7 @@ ftn_bso_error_t ftn_control_release_bsy(const ftn_control_file_t* control) {
     {
         ftn_bso_error_t result = ftn_control_atomic_remove(control->control_path);
         if (result == BSO_OK && control->address) {
-            ftn_log_info("Released BSY lock for %d:%d/%d.%d",
+            logf_info("Released BSY lock for %d:%d/%d.%d",
                          control->address->zone, control->address->net,
                          control->address->node, control->address->point);
         }
@@ -405,7 +405,7 @@ ftn_bso_error_t ftn_control_create_hld(const struct ftn_address* addr, const cha
     if (result == BSO_OK) {
         result = ftn_control_atomic_create(filepath, content);
         if (result == BSO_OK) {
-            ftn_log_info("Created HLD file for %d:%d/%d.%d until %ld",
+            logf_info("Created HLD file for %d:%d/%d.%d until %ld",
                          addr->zone, addr->net, addr->node, addr->point, (long)until);
         }
         free(content);
@@ -579,7 +579,7 @@ ftn_bso_error_t ftn_control_cleanup_stale(const char* outbound, time_t max_age) 
         /* Check if file is stale */
         if ((now - st.st_mtime) > max_age) {
             if (unlink(filepath) == 0) {
-                ftn_log_debug("Cleaned up stale control file: %s", entry->d_name);
+                logf_debug("Cleaned up stale control file: %s", entry->d_name);
                 cleaned++;
             }
         }
@@ -588,7 +588,7 @@ ftn_bso_error_t ftn_control_cleanup_stale(const char* outbound, time_t max_age) 
     closedir(dir);
 
     if (cleaned > 0) {
-        ftn_log_info("Cleaned up %d stale control files in %s", cleaned, outbound);
+        logf_info("Cleaned up %d stale control files in %s", cleaned, outbound);
     }
 
     return BSO_OK;

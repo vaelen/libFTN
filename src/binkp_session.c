@@ -36,7 +36,7 @@ ftn_binkp_error_t ftn_binkp_session_init(ftn_binkp_session_t* session, ftn_net_c
         }
     }
 
-    ftn_log_info("Initialized binkp session as %s", is_originator ? "originator" : "answerer");
+    logf_info("Initialized binkp session as %s", is_originator ? "originator" : "answerer");
     return BINKP_OK;
 }
 
@@ -85,14 +85,14 @@ ftn_binkp_error_t ftn_binkp_session_run(ftn_binkp_session_t* session) {
 
         /* Check session timeout */
         if ((current_time - start_time) > (session->session_timeout_ms / 1000)) {
-            ftn_log_error("Binkp session timeout");
+            logf_error("Binkp session timeout");
             session->state = BINKP_STATE_ERROR;
             return BINKP_ERROR_TIMEOUT;
         }
 
         result = ftn_binkp_session_step(session);
         if (result != BINKP_OK) {
-            ftn_log_error("Binkp session step failed: %s", ftn_binkp_error_string(result));
+            logf_error("Binkp session step failed: %s", ftn_binkp_error_string(result));
             session->state = BINKP_STATE_ERROR;
             return result;
         }
@@ -102,7 +102,7 @@ ftn_binkp_error_t ftn_binkp_session_run(ftn_binkp_session_t* session) {
         return BINKP_ERROR_PROTOCOL_ERROR;
     }
 
-    ftn_log_info("Binkp session completed successfully");
+    logf_info("Binkp session completed successfully");
     return BINKP_OK;
 }
 
@@ -111,7 +111,7 @@ ftn_binkp_error_t ftn_binkp_session_step(ftn_binkp_session_t* session) {
         return BINKP_ERROR_INVALID_FRAME;
     }
 
-    ftn_log_debug("Processing state %s", ftn_binkp_session_state_name(session->state));
+    logf_debug("Processing state %s", ftn_binkp_session_state_name(session->state));
 
     /* Handle transfer state */
     if (session->state == BINKP_STATE_T0_TRANSFER) {
@@ -196,7 +196,7 @@ ftn_binkp_error_t ftn_binkp_handle_originator_state(ftn_binkp_session_t* session
             return BINKP_OK;
 
         default:
-            ftn_log_error("Unknown originator state: %d", session->state);
+            logf_error("Unknown originator state: %d", session->state);
             session->state = BINKP_STATE_ERROR;
             return BINKP_ERROR_PROTOCOL_ERROR;
     }
@@ -256,7 +256,7 @@ ftn_binkp_error_t ftn_binkp_handle_answerer_state(ftn_binkp_session_t* session) 
             return BINKP_OK;
 
         default:
-            ftn_log_error("Unknown answerer state: %d", session->state);
+            logf_error("Unknown answerer state: %d", session->state);
             session->state = BINKP_STATE_ERROR;
             return BINKP_ERROR_PROTOCOL_ERROR;
     }
@@ -315,12 +315,12 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
         return BINKP_ERROR_INVALID_COMMAND;
     }
 
-    ftn_log_debug("Processing command %s", ftn_binkp_command_name(cmd->cmd));
+    logf_debug("Processing command %s", ftn_binkp_command_name(cmd->cmd));
 
     switch (cmd->cmd) {
         case BINKP_M_NUL:
             /* Information message, just log it */
-            ftn_log_info("Remote info: %s", cmd->args ? cmd->args : "");
+            logf_info("Remote info: %s", cmd->args ? cmd->args : "");
             return BINKP_OK;
 
         case BINKP_M_ADR:
@@ -333,7 +333,7 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
                 if (session->remote_addresses) {
                     strcpy(session->remote_addresses, cmd->args);
                 }
-                ftn_log_info("Remote addresses: %s", cmd->args);
+                logf_info("Remote addresses: %s", cmd->args);
 
                 /* Transition states based on current state */
                 if (session->state == BINKP_STATE_S3_WAIT_ADDR) {
@@ -350,9 +350,9 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
                 if (strcmp(cmd->args, session->config->networks[0].password) == 0) {
                     session->authenticated = 1;
                     session->is_secure = 1;
-                    ftn_log_info("Authentication successful");
+                    logf_info("Authentication successful");
                 } else {
-                    ftn_log_error("Authentication failed");
+                    logf_error("Authentication failed");
                     return ftn_binkp_send_command(session, BINKP_M_ERR, "Authentication failed");
                 }
             }
@@ -363,7 +363,7 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
 
         case BINKP_M_OK:
             /* Acknowledgment */
-            ftn_log_info("Received M_OK: %s", cmd->args ? cmd->args : "");
+            logf_info("Received M_OK: %s", cmd->args ? cmd->args : "");
             if (session->state == BINKP_STATE_S6_WAIT_OK) {
                 session->state = BINKP_STATE_S7_OPTS;
             }
@@ -371,19 +371,19 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
 
         case BINKP_M_EOB:
             /* End of batch */
-            ftn_log_info("End of batch received");
+            logf_info("End of batch received");
             session->state = BINKP_STATE_DONE;
             return BINKP_OK;
 
         case BINKP_M_ERR:
             /* Error message */
-            ftn_log_error("Remote error: %s", cmd->args ? cmd->args : "");
+            logf_error("Remote error: %s", cmd->args ? cmd->args : "");
             session->state = BINKP_STATE_ERROR;
             return BINKP_ERROR_PROTOCOL_ERROR;
 
         case BINKP_M_BSY:
             /* Busy message */
-            ftn_log_warning("Remote busy: %s", cmd->args ? cmd->args : "");
+            logf_warning("Remote busy: %s", cmd->args ? cmd->args : "");
             session->state = BINKP_STATE_ERROR;
             return BINKP_ERROR_PROTOCOL_ERROR;
 
@@ -392,12 +392,12 @@ ftn_binkp_error_t ftn_binkp_process_command(ftn_binkp_session_t* session, const 
         case BINKP_M_GET:
         case BINKP_M_SKIP:
             /* File transfer commands - not implemented yet */
-            ftn_log_debug("File transfer command %s received (not implemented)", ftn_binkp_command_name(cmd->cmd));
+            logf_debug("File transfer command %s received (not implemented)", ftn_binkp_command_name(cmd->cmd));
             return BINKP_OK;
 
         default:
             /* Unknown command, ignore for forward compatibility */
-            ftn_log_warning("Unknown command: %d", cmd->cmd);
+            logf_warning("Unknown command: %d", cmd->cmd);
             return BINKP_OK;
     }
 }
@@ -408,7 +408,7 @@ ftn_binkp_error_t ftn_binkp_process_data(ftn_binkp_session_t* session, const ftn
     }
 
     /* Data frames are used for file transfer - not implemented yet */
-    ftn_log_debug("Received data frame of %zu bytes (file transfer not implemented)", frame->size);
+    logf_debug("Received data frame of %zu bytes (file transfer not implemented)", frame->size);
     session->bytes_received += frame->size;
 
     return BINKP_OK;
@@ -438,7 +438,7 @@ ftn_binkp_error_t ftn_binkp_send_command(ftn_binkp_session_t* session, ftn_binkp
     ftn_binkp_command_free(&cmd_frame);
     ftn_binkp_frame_free(&frame);
 
-    ftn_log_debug("Sent command %s", ftn_binkp_command_name(cmd));
+    logf_debug("Sent command %s", ftn_binkp_command_name(cmd));
     return result;
 }
 

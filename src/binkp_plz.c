@@ -65,7 +65,7 @@ ftn_binkp_error_t ftn_plz_set_mode(ftn_plz_context_t* ctx, ftn_plz_mode_t mode) 
     ctx->local_mode = mode;
     ctx->plz_enabled = (mode != PLZ_MODE_NONE);
 
-    ftn_log_debug("Set PLZ mode to %s", ftn_plz_mode_name(mode));
+    logf_debug("Set PLZ mode to %s", ftn_plz_mode_name(mode));
     return BINKP_OK;
 }
 
@@ -75,7 +75,7 @@ ftn_binkp_error_t ftn_plz_set_level(ftn_plz_context_t* ctx, ftn_plz_level_t leve
     }
 
     ctx->compression_level = level;
-    ftn_log_debug("Set PLZ compression level to %s", ftn_plz_level_name(level));
+    logf_debug("Set PLZ compression level to %s", ftn_plz_level_name(level));
     return BINKP_OK;
 }
 
@@ -99,7 +99,7 @@ ftn_binkp_error_t ftn_plz_negotiate(ftn_plz_context_t* ctx, const char* remote_o
     /* Negotiate PLZ mode */
     if (ctx->local_mode == PLZ_MODE_REQUIRED) {
         if (remote_mode == PLZ_MODE_NONE) {
-            ftn_log_error("PLZ mode required but remote does not support it");
+            logf_error("PLZ mode required but remote does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->plz_negotiated = 1;
@@ -110,13 +110,13 @@ ftn_binkp_error_t ftn_plz_negotiate(ftn_plz_context_t* ctx, const char* remote_o
     } else {
         /* Local mode is NONE */
         if (remote_mode == PLZ_MODE_REQUIRED) {
-            ftn_log_error("Remote requires PLZ mode but local does not support it");
+            logf_error("Remote requires PLZ mode but local does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->plz_negotiated = 0;
     }
 
-    ftn_log_info("PLZ mode negotiation: local=%s, remote=%s, negotiated=%s",
+    logf_info("PLZ mode negotiation: local=%s, remote=%s, negotiated=%s",
                  ftn_plz_mode_name(ctx->local_mode),
                  ftn_plz_mode_name(ctx->remote_mode),
                  ctx->plz_negotiated ? "yes" : "no");
@@ -202,7 +202,7 @@ ftn_binkp_error_t ftn_plz_compress_data(ftn_plz_context_t* ctx, const uint8_t* i
     ctx->bytes_sent_uncompressed += input_len;
     ctx->bytes_sent_compressed += *output_len;
 
-    ftn_log_debug("PLZ compressed %zu bytes to %zu bytes (ratio: %.2f%%)",
+    logf_debug("PLZ compressed %zu bytes to %zu bytes (ratio: %.2f%%)",
                   input_len, *output_len,
                   input_len > 0 ? (100.0 * *output_len / input_len) : 0.0);
 
@@ -265,7 +265,7 @@ ftn_binkp_error_t ftn_plz_decompress_data(ftn_plz_context_t* ctx, const uint8_t*
     ctx->bytes_received_compressed += input_len;
     ctx->bytes_received_uncompressed += *output_len;
 
-    ftn_log_debug("PLZ decompressed %zu bytes to %zu bytes", input_len, *output_len);
+    logf_debug("PLZ decompressed %zu bytes to %zu bytes", input_len, *output_len);
     return BINKP_OK;
 }
 

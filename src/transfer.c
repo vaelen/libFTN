@@ -51,7 +51,7 @@ ftn_bso_error_t ftn_file_transfer_setup_send(ftn_file_transfer_t* transfer, cons
 
     /* Get file stats */
     if (stat(filepath, &st) != 0) {
-        ftn_log_error("Cannot stat file %s: %s", filepath, strerror(errno));
+        logf_error("Cannot stat file %s: %s", filepath, strerror(errno));
         return BSO_ERROR_NOT_FOUND;
     }
 
@@ -76,7 +76,7 @@ ftn_bso_error_t ftn_file_transfer_setup_send(ftn_file_transfer_t* transfer, cons
     transfer->action = action;
     transfer->state = TRANSFER_STATE_IDLE;
 
-    ftn_log_debug("Setup send transfer for %s (%zu bytes, action=%s)",
+    logf_debug("Setup send transfer for %s (%zu bytes, action=%s)",
                   filename, transfer->total_size, ftn_flow_directive_string(action));
 
     return BSO_OK;
@@ -108,7 +108,7 @@ ftn_bso_error_t ftn_file_transfer_setup_receive(ftn_file_transfer_t* transfer, c
         return result;
     }
 
-    ftn_log_debug("Setup receive transfer for %s (%zu bytes)", filename, size);
+    logf_debug("Setup receive transfer for %s (%zu bytes)", filename, size);
     return BSO_OK;
 }
 
@@ -208,7 +208,7 @@ ftn_bso_error_t ftn_transfer_add_file(ftn_transfer_context_t* ctx, const ftn_fil
     ctx->pending_count++;
     ctx->total_files++;
 
-    ftn_log_debug("Added file to transfer queue: %s", new_transfer->filename);
+    logf_debug("Added file to transfer queue: %s", new_transfer->filename);
     return BSO_OK;
 }
 
@@ -232,7 +232,7 @@ ftn_bso_error_t ftn_transfer_load_from_flow(ftn_transfer_context_t* ctx, const f
 
         /* Validate file exists */
         if (ftn_flow_validate_file_exists(entry) != BSO_OK) {
-            ftn_log_warning("File not found, skipping: %s", entry->filepath);
+            logf_warning("File not found, skipping: %s", entry->filepath);
             continue;
         }
 
@@ -252,7 +252,7 @@ ftn_bso_error_t ftn_transfer_load_from_flow(ftn_transfer_context_t* ctx, const f
         }
     }
 
-    ftn_log_info("Loaded %zu files from flow %s", flow->file_count, flow->filename);
+    logf_info("Loaded %zu files from flow %s", flow->file_count, flow->filename);
     return BSO_OK;
 }
 
@@ -264,7 +264,7 @@ ftn_bso_error_t ftn_transfer_start_batch(ftn_transfer_context_t* ctx) {
     ctx->batch_complete = 0;
     ctx->completed_files = 0;
 
-    ftn_log_info("Starting transfer batch with %zu files", ctx->pending_count);
+    logf_info("Starting transfer batch with %zu files", ctx->pending_count);
     return BSO_OK;
 }
 
@@ -292,7 +292,7 @@ ftn_bso_error_t ftn_transfer_process_next(ftn_transfer_context_t* ctx) {
         /* Start sending the file */
         result = ftn_transfer_send_file_header(ctx, ctx->current_send);
         if (result != BSO_OK) {
-            ftn_log_error("Failed to send file header: %s", ftn_bso_error_string(result));
+            logf_error("Failed to send file header: %s", ftn_bso_error_string(result));
             return result;
         }
 
@@ -333,12 +333,12 @@ ftn_bso_error_t ftn_transfer_send_file_header(ftn_transfer_context_t* ctx, ftn_f
 
     /* Send M_FILE command via binkp session */
     /* This would integrate with the binkp session to send the M_FILE command */
-    ftn_log_info("Sending file header: %s (%zu bytes)", filename, transfer->total_size);
+    logf_info("Sending file header: %s (%zu bytes)", filename, transfer->total_size);
 
     /* Open file for reading */
     transfer->file_handle = fopen(transfer->filename, "rb");
     if (!transfer->file_handle) {
-        ftn_log_error("Cannot open file for sending: %s", transfer->filename);
+        logf_error("Cannot open file for sending: %s", transfer->filename);
         return BSO_ERROR_FILE_IO;
     }
 
@@ -376,7 +376,7 @@ ftn_bso_error_t ftn_transfer_send_file_data(ftn_transfer_context_t* ctx, ftn_fil
         transfer->file_handle = NULL;
         transfer->state = TRANSFER_STATE_WAITING_ACK;
 
-        ftn_log_info("File sent: %s (%zu bytes)", transfer->filename, transfer->transferred);
+        logf_info("File sent: %s (%zu bytes)", transfer->filename, transfer->transferred);
         return BSO_OK;
     }
 
@@ -405,7 +405,7 @@ ftn_bso_error_t ftn_transfer_read_chunk(ftn_file_transfer_t* transfer, void* buf
 
     *bytes_read = fread(buffer, 1, to_read, transfer->file_handle);
     if (*bytes_read != to_read && !feof(transfer->file_handle)) {
-        ftn_log_error("Error reading from file: %s", transfer->filename);
+        logf_error("Error reading from file: %s", transfer->filename);
         return BSO_ERROR_FILE_IO;
     }
 
@@ -421,7 +421,7 @@ ftn_bso_error_t ftn_transfer_write_chunk(ftn_file_transfer_t* transfer, const vo
 
     bytes_written = fwrite(buffer, 1, bytes_to_write, transfer->file_handle);
     if (bytes_written != bytes_to_write) {
-        ftn_log_error("Error writing to file: %s", transfer->temp_filename ? transfer->temp_filename : transfer->filename);
+        logf_error("Error writing to file: %s", transfer->temp_filename ? transfer->temp_filename : transfer->filename);
         return BSO_ERROR_FILE_IO;
     }
 
@@ -461,7 +461,7 @@ ftn_bso_error_t ftn_transfer_receive_file_header(ftn_transfer_context_t* ctx, co
     /* Open temporary file for writing */
     ctx->current_recv->file_handle = fopen(ctx->current_recv->temp_filename, offset > 0 ? "ab" : "wb");
     if (!ctx->current_recv->file_handle) {
-        ftn_log_error("Cannot open temp file for receiving: %s", ctx->current_recv->temp_filename);
+        logf_error("Cannot open temp file for receiving: %s", ctx->current_recv->temp_filename);
         ftn_file_transfer_free(ctx->current_recv);
         free(ctx->current_recv);
         ctx->current_recv = NULL;
@@ -470,7 +470,7 @@ ftn_bso_error_t ftn_transfer_receive_file_header(ftn_transfer_context_t* ctx, co
 
     ctx->current_recv->transferred = offset;
 
-    ftn_log_info("Receiving file: %s (%zu bytes, offset=%zu)", filename, size, offset);
+    logf_info("Receiving file: %s (%zu bytes, offset=%zu)", filename, size, offset);
     return BSO_OK;
 }
 
@@ -550,9 +550,9 @@ ftn_bso_error_t ftn_transfer_apply_action(ftn_file_transfer_t* transfer) {
     switch (transfer->action) {
         case REF_DIRECTIVE_DELETE:
             if (unlink(transfer->filename) != 0) {
-                ftn_log_warning("Failed to delete file %s: %s", transfer->filename, strerror(errno));
+                logf_warning("Failed to delete file %s: %s", transfer->filename, strerror(errno));
             } else {
-                ftn_log_debug("Deleted file: %s", transfer->filename);
+                logf_debug("Deleted file: %s", transfer->filename);
             }
             break;
 
@@ -561,9 +561,9 @@ ftn_bso_error_t ftn_transfer_apply_action(ftn_file_transfer_t* transfer) {
                 FILE* file = fopen(transfer->filename, "w");
                 if (file) {
                     fclose(file);
-                    ftn_log_debug("Truncated file: %s", transfer->filename);
+                    logf_debug("Truncated file: %s", transfer->filename);
                 } else {
-                    ftn_log_warning("Failed to truncate file %s: %s", transfer->filename, strerror(errno));
+                    logf_warning("Failed to truncate file %s: %s", transfer->filename, strerror(errno));
                 }
             }
             break;

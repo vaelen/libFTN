@@ -218,7 +218,7 @@ ftn_bso_error_t ftn_bso_ensure_directory(const char* path) {
     }
 
     if (mkdir(path, 0755) == 0) {
-        ftn_log_debug("Created BSO directory: %s", path);
+        logf_debug("Created BSO directory: %s", path);
         return BSO_OK;
     }
 
@@ -226,7 +226,7 @@ ftn_bso_error_t ftn_bso_ensure_directory(const char* path) {
         return BSO_OK;
     }
 
-    ftn_log_error("Failed to create BSO directory %s: %s", path, strerror(errno));
+    logf_error("Failed to create BSO directory %s: %s", path, strerror(errno));
     return BSO_ERROR_PERMISSION;
 }
 
@@ -314,7 +314,7 @@ ftn_bso_error_t ftn_bso_scan_directory(const char* path, ftn_bso_directory_t* di
 
     dir = opendir(path);
     if (!dir) {
-        ftn_log_error("Cannot open directory %s: %s", path, strerror(errno));
+        logf_error("Cannot open directory %s: %s", path, strerror(errno));
         return BSO_ERROR_NOT_FOUND;
     }
 
@@ -378,7 +378,7 @@ ftn_bso_error_t ftn_bso_scan_directory(const char* path, ftn_bso_directory_t* di
     }
 
     closedir(dir);
-    ftn_log_debug("Scanned directory %s: found %zu entries", path, directory->count);
+    logf_debug("Scanned directory %s: found %zu entries", path, directory->count);
     return BSO_OK;
 }
 

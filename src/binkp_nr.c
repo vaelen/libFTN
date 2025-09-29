@@ -50,7 +50,7 @@ ftn_binkp_error_t ftn_nr_set_mode(ftn_nr_context_t* ctx, ftn_nr_mode_t mode) {
     ctx->local_mode = mode;
     ctx->nr_enabled = (mode != NR_MODE_NONE);
 
-    ftn_log_debug("Set NR mode to %s", ftn_nr_mode_name(mode));
+    logf_debug("Set NR mode to %s", ftn_nr_mode_name(mode));
     return BINKP_OK;
 }
 
@@ -73,7 +73,7 @@ ftn_binkp_error_t ftn_nr_negotiate(ftn_nr_context_t* ctx, const char* remote_opt
     /* Negotiate NR mode */
     if (ctx->local_mode == NR_MODE_REQUIRED) {
         if (remote_mode == NR_MODE_NONE) {
-            ftn_log_error("NR mode required but remote does not support it");
+            logf_error("NR mode required but remote does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->nr_negotiated = 1;
@@ -84,13 +84,13 @@ ftn_binkp_error_t ftn_nr_negotiate(ftn_nr_context_t* ctx, const char* remote_opt
     } else {
         /* Local mode is NONE */
         if (remote_mode == NR_MODE_REQUIRED) {
-            ftn_log_error("Remote requires NR mode but local does not support it");
+            logf_error("Remote requires NR mode but local does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->nr_negotiated = 0;
     }
 
-    ftn_log_info("NR mode negotiation: local=%s, remote=%s, negotiated=%s",
+    logf_info("NR mode negotiation: local=%s, remote=%s, negotiated=%s",
                  ftn_nr_mode_name(ctx->local_mode),
                  ftn_nr_mode_name(ctx->remote_mode),
                  ctx->nr_negotiated ? "yes" : "no");
@@ -138,7 +138,7 @@ ftn_binkp_error_t ftn_nr_set_file_info(ftn_nr_context_t* ctx, const char* filena
     ctx->expected_size = size;
     ctx->resume_offset = offset;
 
-    ftn_log_debug("Set NR file info: %s, size=%u, timestamp=%u, offset=%u",
+    logf_debug("Set NR file info: %s, size=%u, timestamp=%u, offset=%u",
                   filename, size, timestamp, offset);
     return BINKP_OK;
 }
@@ -161,7 +161,7 @@ ftn_binkp_error_t ftn_nr_get_resume_offset(const ftn_nr_context_t* ctx, const ch
     result = ftn_nr_check_partial_file(filename, ctx->expected_size, &existing_size);
     if (result == BINKP_OK && existing_size > 0 && existing_size < ctx->expected_size) {
         *offset = existing_size;
-        ftn_log_info("Found partial file %s, resume at offset %u", filename, *offset);
+        logf_info("Found partial file %s, resume at offset %u", filename, *offset);
     }
 
     return BINKP_OK;
@@ -189,7 +189,7 @@ ftn_binkp_error_t ftn_nr_create_nda_response(const ftn_nr_context_t* ctx, const 
     }
 
     snprintf(*response, 256, "NDA %s %u %u %u", filename, size, timestamp, offset);
-    ftn_log_debug("Created NDA response: %s", *response);
+    logf_debug("Created NDA response: %s", *response);
     return BINKP_OK;
 }
 
@@ -326,7 +326,7 @@ ftn_binkp_error_t ftn_nr_check_partial_file(const char* filename, uint32_t expec
 
             /* Validate file size is reasonable */
             if (*existing_size > expected_size) {
-                ftn_log_warning("Partial file %s is larger than expected (%u > %u)",
+                logf_warning("Partial file %s is larger than expected (%u > %u)",
                                filename, *existing_size, expected_size);
                 return BINKP_ERROR_INVALID_COMMAND;
             }
@@ -354,12 +354,12 @@ ftn_binkp_error_t ftn_nr_create_partial_file(const char* filename, uint32_t offs
     }
 
     if (fd < 0) {
-        ftn_log_error("Failed to create/open partial file %s", filename);
+        logf_error("Failed to create/open partial file %s", filename);
         return BINKP_ERROR_PROTOCOL_ERROR;
     }
 
     close(fd);
-    ftn_log_debug("Created/opened partial file %s at offset %u", filename, offset);
+    logf_debug("Created/opened partial file %s at offset %u", filename, offset);
     return BINKP_OK;
 }
 

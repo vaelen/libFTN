@@ -68,7 +68,7 @@ ftn_binkp_error_t ftn_crc32_file(const char* filename, uint32_t* crc) {
 
     file = fopen(filename, "rb");
     if (!file) {
-        ftn_log_error("Failed to open file %s for CRC calculation", filename);
+        logf_error("Failed to open file %s for CRC calculation", filename);
         return BINKP_ERROR_PROTOCOL_ERROR;
     }
 
@@ -125,7 +125,7 @@ ftn_binkp_error_t ftn_crc_set_mode(ftn_crc_context_t* ctx, ftn_crc_mode_t mode) 
         ctx->algorithm = CRC_ALGORITHM_CRC32;
     }
 
-    ftn_log_debug("Set CRC mode to %s", ftn_crc_mode_name(mode));
+    logf_debug("Set CRC mode to %s", ftn_crc_mode_name(mode));
     return BINKP_OK;
 }
 
@@ -149,7 +149,7 @@ ftn_binkp_error_t ftn_crc_negotiate(ftn_crc_context_t* ctx, const char* remote_o
     /* Negotiate CRC mode */
     if (ctx->local_mode == CRC_MODE_REQUIRED) {
         if (remote_mode == CRC_MODE_NONE) {
-            ftn_log_error("CRC mode required but remote does not support it");
+            logf_error("CRC mode required but remote does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->crc_negotiated = 1;
@@ -162,13 +162,13 @@ ftn_binkp_error_t ftn_crc_negotiate(ftn_crc_context_t* ctx, const char* remote_o
     } else {
         /* Local mode is NONE */
         if (remote_mode == CRC_MODE_REQUIRED) {
-            ftn_log_error("Remote requires CRC mode but local does not support it");
+            logf_error("Remote requires CRC mode but local does not support it");
             return BINKP_ERROR_AUTH_FAILED;
         }
         ctx->crc_negotiated = 0;
     }
 
-    ftn_log_info("CRC mode negotiation: local=%s, remote=%s, negotiated=%s, algorithm=%s",
+    logf_info("CRC mode negotiation: local=%s, remote=%s, negotiated=%s, algorithm=%s",
                  ftn_crc_mode_name(ctx->local_mode),
                  ftn_crc_mode_name(ctx->remote_mode),
                  ctx->crc_negotiated ? "yes" : "no",
@@ -217,7 +217,7 @@ ftn_binkp_error_t ftn_crc_start_file(ftn_crc_context_t* ctx, const char* filenam
     ctx->calculated_crc = 0xFFFFFFFFUL;
     ctx->crc_valid = 0;
 
-    ftn_log_debug("Started CRC verification for file %s, expected CRC: 0x%08X", filename, expected_crc);
+    logf_debug("Started CRC verification for file %s, expected CRC: 0x%08X", filename, expected_crc);
     return BINKP_OK;
 }
 
@@ -255,10 +255,10 @@ ftn_binkp_error_t ftn_crc_finish_file(ftn_crc_context_t* ctx, int* crc_valid) {
     /* Update statistics */
     if (ctx->crc_valid) {
         ctx->files_verified++;
-        ftn_log_info("CRC verification passed for %s: 0x%08X", ctx->current_filename, final_crc);
+        logf_info("CRC verification passed for %s: 0x%08X", ctx->current_filename, final_crc);
     } else {
         ctx->files_failed++;
-        ftn_log_warning("CRC verification failed for %s: expected 0x%08X, got 0x%08X",
+        logf_warning("CRC verification failed for %s: expected 0x%08X, got 0x%08X",
                        ctx->current_filename, ctx->expected_crc, final_crc);
     }
 
@@ -283,7 +283,7 @@ ftn_binkp_error_t ftn_crc_create_command(const ftn_crc_context_t* ctx, const cha
     }
 
     snprintf(*command, 256, "CRC %s %u 0x%08X", filename, size, crc);
-    ftn_log_debug("Created CRC command: %s", *command);
+    logf_debug("Created CRC command: %s", *command);
     return BINKP_OK;
 }
 
