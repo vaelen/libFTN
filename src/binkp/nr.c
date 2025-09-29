@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "ftn/binkp_nr.h"
+#include "ftn/binkp/nr.h"
 #include "ftn/log.h"
 
 ftn_binkp_error_t ftn_nr_init(ftn_nr_context_t* ctx) {

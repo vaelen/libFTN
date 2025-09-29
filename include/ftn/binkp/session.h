@@ -27,10 +27,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
-#include "binkp.h"
-#include "binkp_commands.h"
-#include "net.h"
-#include "config.h"
+#include "../binkp.h"
+#include "commands.h"
+#include "../net.h"
+#include "../config.h"
 
 /* Session states */
 typedef enum {

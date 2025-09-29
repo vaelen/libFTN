@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "ftn/binkp_auth.h"
+#include "ftn/binkp/auth.h"
 #include "ftn/log.h"
 
 ftn_binkp_error_t ftn_binkp_auth_init(ftn_binkp_auth_context_t* auth_ctx, ftn_config_t* config) {

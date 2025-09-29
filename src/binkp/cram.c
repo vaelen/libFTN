@@ -27,7 +27,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include "ftn/binkp_cram.h"
+#include "ftn/binkp/cram.h"
 #include "ftn/log.h"
 
 /* Simple MD5 implementation for CRAM (RFC 1321) */

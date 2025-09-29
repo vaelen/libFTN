@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ftn/binkp_plz.h"
+#include "ftn/binkp/plz.h"
 #include "ftn/log.h"
 
 /* Default buffer sizes */

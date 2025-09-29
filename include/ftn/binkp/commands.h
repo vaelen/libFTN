@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
-#include "binkp.h"
+#include "../binkp.h"
 
 /* Binkp command types */
 typedef enum {

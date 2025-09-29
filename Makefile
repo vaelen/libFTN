@@ -14,8 +14,9 @@ TESTDIR = tests
 LIBRARY = $(LIBDIR)/libftn.a
 
 # Source files
-SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c $(SRCDIR)/net.c $(SRCDIR)/fnmailer.c $(SRCDIR)/binkp.c $(SRCDIR)/binkp_commands.c $(SRCDIR)/binkp_session.c $(SRCDIR)/binkp_auth.c $(SRCDIR)/bso.c $(SRCDIR)/flow.c $(SRCDIR)/control.c $(SRCDIR)/transfer.c $(SRCDIR)/binkp_cram.c $(SRCDIR)/binkp_nr.c $(SRCDIR)/binkp_plz.c $(SRCDIR)/binkp_crc.c
-OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+SOURCES = $(SRCDIR)/ftn.c $(SRCDIR)/crc.c $(SRCDIR)/nodelist.c $(SRCDIR)/search.c $(SRCDIR)/compat.c $(SRCDIR)/packet.c $(SRCDIR)/rfc822.c $(SRCDIR)/version.c $(SRCDIR)/config.c $(SRCDIR)/dupecheck.c $(SRCDIR)/router.c $(SRCDIR)/storage.c $(SRCDIR)/log.c $(SRCDIR)/net.c $(SRCDIR)/fnmailer.c $(SRCDIR)/binkp.c $(SRCDIR)/binkp/commands.c $(SRCDIR)/binkp/session.c $(SRCDIR)/binkp/auth.c $(SRCDIR)/bso.c $(SRCDIR)/flow.c $(SRCDIR)/control.c $(SRCDIR)/transfer.c $(SRCDIR)/binkp/cram.c $(SRCDIR)/binkp/nr.c $(SRCDIR)/binkp/plz.c $(SRCDIR)/binkp/crc.c
+OBJECTS = $(SRCDIR)/ftn.o $(SRCDIR)/crc.o $(SRCDIR)/nodelist.o $(SRCDIR)/search.o $(SRCDIR)/compat.o $(SRCDIR)/packet.o $(SRCDIR)/rfc822.o $(SRCDIR)/version.o $(SRCDIR)/config.o $(SRCDIR)/dupecheck.o $(SRCDIR)/router.o $(SRCDIR)/storage.o $(SRCDIR)/log.o $(SRCDIR)/net.o $(SRCDIR)/fnmailer.o $(SRCDIR)/binkp.o $(SRCDIR)/binkp/commands.o $(SRCDIR)/binkp/session.o $(SRCDIR)/binkp/auth.o $(SRCDIR)/bso.o $(SRCDIR)/flow.o $(SRCDIR)/control.o $(SRCDIR)/transfer.o $(SRCDIR)/binkp/cram.o $(SRCDIR)/binkp/nr.o $(SRCDIR)/binkp/plz.o $(SRCDIR)/binkp/crc.o
+OBJECTS := $(addprefix $(OBJDIR)/,$(OBJECTS:$(SRCDIR)/%=%))
 
 # Test programs
 TEST_SOURCES = $(TESTDIR)/test_nodelist.c $(TESTDIR)/test_crc.c $(TESTDIR)/test_compat.c $(TESTDIR)/test_packet.c $(TESTDIR)/test_control_paragraphs.c $(TESTDIR)/test_rfc822.c $(TESTDIR)/test_config.c $(TESTDIR)/test_fntosser.c $(TESTDIR)/test_dupecheck.c $(TESTDIR)/test_router.c $(TESTDIR)/test_storage.c $(TESTDIR)/test_integration.c
@@ -33,6 +34,9 @@ all: $(LIBRARY) examples test
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
+$(OBJDIR)/binkp:
+	mkdir -p $(OBJDIR)/binkp
+
 $(LIBDIR):
 	mkdir -p $(LIBDIR)
 
@@ -44,6 +48,7 @@ $(BINDIR)/tests:
 
 # Build object files
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Build library
@@ -75,12 +80,14 @@ install: all
 	@echo "Installing libFTN to $(DESTDIR)$(PREFIX)..."
 	install -d $(DESTDIR)$(PREFIX)/lib
 	install -d $(DESTDIR)$(PREFIX)/include/ftn
+	install -d $(DESTDIR)$(PREFIX)/include/ftn/binkp
 	install -d $(DESTDIR)$(PREFIX)/bin
 	install -d $(DESTDIR)$(PREFIX)/share/man/man1
 	install -d $(DESTDIR)$(PREFIX)/share/doc/libftn
 	install -m 644 $(LIBRARY) $(DESTDIR)$(PREFIX)/lib/
 	install -m 644 include/ftn.h $(DESTDIR)$(PREFIX)/include/
 	install -m 644 include/ftn/*.h $(DESTDIR)$(PREFIX)/include/ftn/
+	install -m 644 include/ftn/binkp/*.h $(DESTDIR)$(PREFIX)/include/ftn/binkp/
 	install -m 755 $(EXAMPLE_BINARIES) $(DESTDIR)$(PREFIX)/bin/
 	install -m 644 docs/fntosser.1 $(DESTDIR)$(PREFIX)/share/man/man1/
 	install -m 644 examples/fntosser.ini $(DESTDIR)$(PREFIX)/share/doc/libftn/

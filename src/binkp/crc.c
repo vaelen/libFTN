@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ftn/binkp_crc.h"
+#include "ftn/binkp/crc.h"
 #include "ftn/log.h"
 
 /* CRC32 polynomial (IEEE 802.3) */

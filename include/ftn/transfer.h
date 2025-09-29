@@ -29,7 +29,7 @@
 #include <time.h>
 #include "bso.h"
 #include "flow.h"
-#include "binkp_session.h"
+#include "binkp/session.h"
 
 /* Forward declarations */
 struct ftn_address;

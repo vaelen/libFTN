@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include "ftn/binkp_session.h"
+#include "ftn/binkp/session.h"
 #include "ftn/log.h"
 
 ftn_binkp_error_t ftn_binkp_session_init(ftn_binkp_session_t* session, ftn_net_connection_t* conn, ftn_config_t* config, int is_originator) {

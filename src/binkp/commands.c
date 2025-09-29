@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "ftn/binkp_commands.h"
+#include "ftn/binkp/commands.h"
 #include "ftn/log.h"
 
 ftn_binkp_error_t ftn_binkp_command_init(ftn_binkp_command_frame_t* cmd_frame) {

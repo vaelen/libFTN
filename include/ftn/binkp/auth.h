@@ -25,8 +25,8 @@
 #define FTN_BINKP_AUTH_H
 
 #include <stddef.h>
-#include "binkp.h"
-#include "config.h"
+#include "../binkp.h"
+#include "../config.h"
 
 /* Authentication result */
 typedef enum {

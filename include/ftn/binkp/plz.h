@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "binkp.h"
+#include "../binkp.h"
 
 /* PLZ compression modes */
 typedef enum {
